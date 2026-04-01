@@ -30,10 +30,19 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
         orderBy: { createdAt: "desc" },
       },
       screenshotPlans: { orderBy: { createdAt: "desc" } },
+      screenshotMockups: { orderBy: { screenIndex: "asc" } },
       experiments: { orderBy: [{ status: "asc" }, { priority: "desc" }] },
       recommendations: {
         where: { status: { not: "DISMISSED" } },
         orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      },
+      competitors: { orderBy: { createdAt: "desc" } },
+      keywordSets: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          keywords: { orderBy: { volume: "desc" } },
+        },
+        take: 2, // latest per platform (IOS + ANDROID)
       },
       _count: {
         select: {

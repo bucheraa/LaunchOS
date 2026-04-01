@@ -15,6 +15,7 @@ import { ProjectStoreCopyTab } from "./tabs/store-copy-tab";
 import { ProjectScreenshotTab } from "./tabs/screenshot-tab";
 import { ProjectExperimentsTab } from "./tabs/experiments-tab";
 import { ProjectRecommendationsTab } from "./tabs/recommendations-tab";
+import { ProjectCompetitorsTab } from "./tabs/competitors-tab";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -22,6 +23,7 @@ const TABS = [
   { id: "store-copy", label: "Store Copy" },
   { id: "screenshots", label: "Screenshots" },
   { id: "experiments", label: "Experiments" },
+  { id: "competitors", label: "Competitors" },
   { id: "recommendations", label: "Recommendations" },
 ];
 
@@ -117,6 +119,9 @@ export function ProjectDetailView({ project, defaultTab = "overview" }: Props) {
           </TabsContent>
           <TabsContent value="experiments" className="m-0">
             <ProjectExperimentsTab project={project} />
+          </TabsContent>
+          <TabsContent value="competitors" className="m-0">
+            <ProjectCompetitorsTab project={project} />
           </TabsContent>
           <TabsContent value="recommendations" className="m-0">
             <ProjectRecommendationsTab project={project} />

@@ -1,4 +1,4 @@
-import { PrismaClient, Platform, AppCategory, PricingModel, Priority, Effort } from "@prisma/client";
+import { PrismaClient, Platform, AppCategory, PricingModel, Priority, Effort, KeywordSource } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -446,6 +446,74 @@ Download free and start your 14-day premium trial today.`,
         effort: Effort.LOW,
         impact: "Additional 15-20k monthly impressions",
         status: "IN_PROGRESS",
+      },
+    ],
+  });
+
+  // Keyword Set (iOS)
+  const kwSet = await prisma.keywordSet.create({
+    data: {
+      projectId: project.id,
+      platform: Platform.IOS,
+      locale: "en",
+      keywords: {
+        createMany: {
+          data: [
+            { keyword: "fitness tracker", volume: 180000, difficulty: 72, chance: 28, source: KeywordSource.AI_SUGGESTED },
+            { keyword: "AI workout", volume: 45000, difficulty: 41, chance: 59, source: KeywordSource.ITUNES_AUTOCOMPLETE },
+            { keyword: "personal trainer app", volume: 90000, difficulty: 68, chance: 32, source: KeywordSource.AI_SUGGESTED },
+            { keyword: "workout planner", volume: 120000, difficulty: 55, chance: 45, source: KeywordSource.ITUNES_AUTOCOMPLETE },
+            { keyword: "calorie tracker", volume: 200000, difficulty: 80, chance: 20, source: KeywordSource.AI_SUGGESTED },
+            { keyword: "gym tracker", volume: 60000, difficulty: 48, chance: 52, source: KeywordSource.ITUNES_AUTOCOMPLETE },
+            { keyword: "nutrition coach", volume: 35000, difficulty: 35, chance: 65, source: KeywordSource.AI_SUGGESTED },
+            { keyword: "HIIT workout app", volume: 55000, difficulty: 52, chance: 48, source: KeywordSource.ITUNES_AUTOCOMPLETE },
+          ],
+        },
+      },
+    },
+  });
+
+  // Competitor Apps
+  await prisma.competitorApp.createMany({
+    data: [
+      {
+        projectId: project.id,
+        appId: "1000873834",
+        platform: Platform.IOS,
+        name: "MyFitnessPal",
+        developer: "MyFitnessPal, Inc.",
+        rating: 4.7,
+        ratingCount: 1200000,
+        description: "Track food, exercise and health data with the world's largest nutrition database.",
+        price: 0,
+        category: "Health & Fitness",
+        keywords: ["calorie tracker", "food diary", "macro tracking", "nutrition", "weight loss"],
+      },
+      {
+        projectId: project.id,
+        appId: "1262609278",
+        platform: Platform.IOS,
+        name: "Hevy - Workout Tracker",
+        developer: "Hevy",
+        rating: 4.9,
+        ratingCount: 85000,
+        description: "Log, plan & analyze your gym workouts. Follow routines from athletes and coaches.",
+        price: 0,
+        category: "Health & Fitness",
+        keywords: ["gym tracker", "strength training", "workout log", "weightlifting", "progressive overload"],
+      },
+      {
+        projectId: project.id,
+        appId: "com.myfitnesspal.android",
+        platform: Platform.ANDROID,
+        name: "MyFitnessPal",
+        developer: "MyFitnessPal, Inc.",
+        rating: 4.5,
+        ratingCount: 4500000,
+        description: "Lose weight with the world's most popular free diet app.",
+        price: 0,
+        category: "Health & Fitness",
+        keywords: ["diet tracker", "calorie counter", "food log", "weight loss", "nutrition"],
       },
     ],
   });

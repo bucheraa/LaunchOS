@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────────
@@ -45,14 +46,16 @@ model VerificationToken {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
+  emailVerified    DateTime?
+  image            String?
+  password         String?
+  onboardingDone   Boolean   @default(false)
+  onboardingStep   Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   accounts        Account[]
   sessions        Session[]
@@ -77,11 +80,11 @@ model Workspace {
 }
 
 model WorkspaceMember {
-  id          String          @id @default(cuid())
+  id          String        @id @default(cuid())
   workspaceId String
   userId      String
-  role        WorkspaceRole   @default(MEMBER)
-  createdAt   DateTime        @default(now())
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -92,64 +95,69 @@ model WorkspaceMember {
 // ─── Project ───────────────────────────────────────────────────────────────────
 
 model Project {
-  id             String         @id @default(cuid())
+  id             String        @id @default(cuid())
   workspaceId    String
   name           String
   platform       Platform[]
   category       AppCategory
-  description    String         @db.Text
-  targetAudience String?        @db.Text
-  pricingModel   PricingModel   @default(FREE)
-  regions        String[]       @default(["US"])
-  mainFeatures   String[]       @default([])
+  description    String        @db.Text
+  targetAudience String?       @db.Text
+  pricingModel   PricingModel  @default(FREE)
+  regions        String[]      @default(["US"])
+  mainFeatures   String[]      @default([])
   landingPageUrl String?
   appStoreUrl    String?
   playStoreUrl   String?
-  status         ProjectStatus  @default(ACTIVE)
-  locale         String[]       @default(["en", "de"])
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  bundleId       String?       // e.g. com.example.app — used for live integrations
+  packageName    String?       // Android package name
+  status         ProjectStatus @default(ACTIVE)
+  locale         String[]      @default(["en", "de"])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   analysis         AppAnalysis?
   listingVariants  ListingVariant[]
   screenshotPlans  ScreenshotPlan[]
+  screenshotMockups ScreenshotMockup[]
   experiments      Experiment[]
   recommendations  Recommendation[]
   uploadedAssets   UploadedAsset[]
   audienceSegments AudienceSegment[]
   valuePropitions  ValueProp[]
   messagingAngles  MessagingAngle[]
+  keywordSets      KeywordSet[]
+  competitors      CompetitorApp[]
 }
 
 // ─── Analysis ──────────────────────────────────────────────────────────────────
 
 model AppAnalysis {
-  id                 String   @id @default(cuid())
-  projectId          String   @unique
-  productSummary     String   @db.Text
-  keyDifferentiators String[] @default([])
-  competitorContext  String?  @db.Text
-  rawInput           String?  @db.Text
+  id                 String    @id @default(cuid())
+  projectId          String    @unique
+  productSummary     String    @db.Text
+  keyDifferentiators String[]  @default([])
+  competitorContext  String?   @db.Text
+  rawInput           String?   @db.Text
   analysisStatus     JobStatus @default(PENDING)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model AudienceSegment {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String   @db.Text
-  demographics String?  @db.Text
-  psychographics String? @db.Text
-  painPoints  String[] @default([])
-  goals       String[] @default([])
-  isPrimary   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  projectId      String
+  name           String
+  description    String   @db.Text
+  demographics   String?  @db.Text
+  psychographics String?  @db.Text
+  painPoints     String[] @default([])
+  goals          String[] @default([])
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   listingVariants ListingVariant[]
@@ -179,63 +187,153 @@ model MessagingAngle {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
+// ─── Keywords ─────────────────────────────────────────────────────────────────
+
+model KeywordSet {
+  id        String     @id @default(cuid())
+  projectId String
+  platform  Platform
+  locale    String     @default("en")
+  source    KeywordSource @default(AI_SUGGESTED)
+  keywords  KeywordData[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model KeywordData {
+  id           String      @id @default(cuid())
+  keywordSetId String
+  keyword      String
+  searchVolume Int?        // monthly search volume (0–100 normalized or raw)
+  difficulty   Int?        // 0–100 competition score
+  relevance    Int?        // 0–100 relevance score
+  currentRank  Int?        // current app ranking for this keyword
+  chance       Int?        // 0–100 ranking chance
+  trending     Boolean     @default(false)
+  source       KeywordSource @default(AI_SUGGESTED)
+  createdAt    DateTime    @default(now())
+
+  keywordSet KeywordSet @relation(fields: [keywordSetId], references: [id], onDelete: Cascade)
+
+  @@index([keywordSetId])
+}
+
+// ─── Competitors ──────────────────────────────────────────────────────────────
+
+model CompetitorApp {
+  id              String   @id @default(cuid())
+  projectId       String
+  platform        Platform
+  appId           String   // App Store app ID or Play Store package name
+  name            String
+  developer       String?
+  icon            String?
+  rating          Float?
+  ratingCount     Int?
+  description     String?  @db.Text
+  shortDesc       String?
+  keywords        String[] @default([])
+  appStoreUrl     String?
+  playStoreUrl    String?
+  price           String?
+  category        String?
+  lastFetchedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, appId, platform])
+}
+
 // ─── Store Listing ─────────────────────────────────────────────────────────────
 
 model ListingVariant {
-  id                String         @id @default(cuid())
+  id                String        @id @default(cuid())
   projectId         String
   audienceSegmentId String?
   platform          Platform
-  locale            String         @default("en")
+  locale            String        @default("en")
   variantName       String
   appName           String?
   subtitle          String?
   promotionalText   String?
-  description       String?        @db.Text
+  description       String?       @db.Text
   shortDescription  String?
-  keywords          String[]       @default([])
-  status            VariantStatus  @default(DRAFT)
-  isControl         Boolean        @default(false)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  keywords          String[]      @default([])
+  status            VariantStatus @default(DRAFT)
+  isControl         Boolean       @default(false)
+  pushedToStore     Boolean       @default(false)
+  pushedAt          DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   audienceSegment AudienceSegment? @relation(fields: [audienceSegmentId], references: [id])
 }
 
-// ─── Screenshot Plan ───────────────────────────────────────────────────────────
+// ─── Screenshot Plan & Mockups ────────────────────────────────────────────────
 
 model ScreenshotPlan {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   projectId String
   platform  Platform
-  locale    String   @default("en")
+  locale    String    @default("en")
   name      String
-  screens   Json     // ScreenItem[]
+  screens   Json      // ScreenItem[]
   status    JobStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mockups   ScreenshotMockup[]
+}
+
+model ScreenshotMockup {
+  id              String   @id @default(cuid())
+  projectId       String
+  screenshotPlanId String?
+  platform        Platform
+  screenOrder     Int
+  headline        String
+  subtext         String?
+  backgroundColor String   @default("#6C47FF")
+  textColor       String   @default("#FFFFFF")
+  accentColor     String   @default("#FFFFFF")
+  storageKey      String?  // Supabase Storage key for generated PNG
+  storageUrl      String?  // public URL
+  status          JobStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  screenshotPlan ScreenshotPlan? @relation(fields: [screenshotPlanId], references: [id])
 }
 
 // ─── Experiments ───────────────────────────────────────────────────────────────
 
 model Experiment {
-  id              String           @id @default(cuid())
-  projectId       String
-  name            String
-  hypothesis      String           @db.Text
-  elements        String[]         @default([])
-  targetMetric    String
-  priority        Priority         @default(MEDIUM)
-  expectedImpact  String?
-  status          ExperimentStatus @default(PLANNED)
-  startDate       DateTime?
-  endDate         DateTime?
-  result          String?          @db.Text
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  projectId      String
+  name           String
+  hypothesis     String           @db.Text
+  elements       String[]         @default([])
+  targetMetric   String
+  priority       Priority         @default(MEDIUM)
+  expectedImpact String?
+  status         ExperimentStatus @default(PLANNED)
+  startDate      DateTime?
+  endDate        DateTime?
+  // Result tracking
+  baselineValue  Float?           // e.g. 3.2 (CVR%)
+  resultValue    Float?           // e.g. 4.1 (CVR%)
+  sampleSize     Int?
+  confidence     Float?           // 0–100 statistical confidence
+  winner         String?          // "A" | "B" | "inconclusive"
+  result         String?          @db.Text
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -243,17 +341,17 @@ model Experiment {
 // ─── Recommendations ───────────────────────────────────────────────────────────
 
 model Recommendation {
-  id          String             @id @default(cuid())
+  id          String                 @id @default(cuid())
   projectId   String
   title       String
-  description String             @db.Text
+  description String                 @db.Text
   category    RecommendationCategory
-  priority    Priority           @default(MEDIUM)
-  effort      Effort             @default(MEDIUM)
+  priority    Priority               @default(MEDIUM)
+  effort      Effort                 @default(MEDIUM)
   impact      String?
-  status      RecommendationStatus @default(OPEN)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  status      RecommendationStatus   @default(OPEN)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -261,15 +359,15 @@ model Recommendation {
 // ─── Assets ────────────────────────────────────────────────────────────────────
 
 model UploadedAsset {
-  id         String      @id @default(cuid())
-  projectId  String
-  name       String
-  url        String
-  key        String      // S3 key
-  size       Int
-  mimeType   String
-  assetType  AssetType   @default(SCREENSHOT)
-  createdAt  DateTime    @default(now())
+  id        String    @id @default(cuid())
+  projectId String
+  name      String
+  url       String
+  key       String    // Supabase Storage key
+  size      Int
+  mimeType  String
+  assetType AssetType @default(SCREENSHOT)
+  createdAt DateTime  @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -277,15 +375,15 @@ model UploadedAsset {
 // ─── Billing ───────────────────────────────────────────────────────────────────
 
 model BillingCustomer {
-  id                   String   @id @default(cuid())
-  userId               String?  @unique
-  workspaceId          String?  @unique
-  stripeCustomerId     String   @unique
-  stripeSubscriptionId String?
-  stripePriceId        String?
+  id                     String    @id @default(cuid())
+  userId                 String?   @unique
+  workspaceId            String?   @unique
+  stripeCustomerId       String    @unique
+  stripeSubscriptionId   String?
+  stripePriceId          String?
   stripeCurrentPeriodEnd DateTime?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   user      User?      @relation(fields: [userId], references: [id])
   workspace Workspace? @relation(fields: [workspaceId], references: [id])
@@ -294,15 +392,15 @@ model BillingCustomer {
 // ─── Integrations ──────────────────────────────────────────────────────────────
 
 model Integration {
-  id            String              @id @default(cuid())
-  workspaceId   String
-  provider      IntegrationProvider
-  status        IntegrationStatus   @default(DISCONNECTED)
-  credentials   Json?               // encrypted
-  metadata      Json?
-  lastSyncedAt  DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  id           String              @id @default(cuid())
+  workspaceId  String
+  provider     IntegrationProvider
+  status       IntegrationStatus   @default(DISCONNECTED)
+  credentials  Json?               // encrypted in application layer
+  metadata     Json?               // app list cache, last sync info
+  lastSyncedAt DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -437,4 +535,11 @@ enum IntegrationStatus {
   DISCONNECTED
   ERROR
   PENDING
+}
+
+enum KeywordSource {
+  AI_SUGGESTED
+  APPFOLLOW
+  ITUNES_AUTOCOMPLETE
+  MANUAL
 }

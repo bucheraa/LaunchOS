@@ -1,41 +1,13 @@
 import { requireAuth, getWorkspace } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { Header } from "@/components/layout/header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { ExternalLink, Link as LinkIcon, Plug } from "lucide-react";
+import { IntegrationsPanel } from "@/components/settings/integrations-panel";
+import { BillingPanel } from "@/components/settings/billing-panel";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
-const INTEGRATIONS = [
-  {
-    provider: "APPLE_APP_STORE_CONNECT",
-    name: "Apple App Store Connect",
-    description: "Sync app metadata and listings directly to App Store Connect.",
-    icon: "🍎",
-    docsUrl: "https://developer.apple.com/documentation/appstoreconnectapi",
-  },
-  {
-    provider: "GOOGLE_PLAY_DEVELOPER",
-    name: "Google Play Developer",
-    description: "Push store listings to Google Play via the Developer API.",
-    icon: "🤖",
-    docsUrl: "https://developers.google.com/android-publisher",
-  },
-  {
-    provider: "REVENUECAT",
-    name: "RevenueCat",
-    description: "Connect subscription data for monetization insights.",
-    icon: "💰",
-    docsUrl: "https://www.revenuecat.com/docs",
-  },
-  {
-    provider: "STRIPE",
-    name: "Stripe",
-    description: "Manage billing and subscription plans.",
-    icon: "💳",
-    docsUrl: "https://stripe.com/docs",
-  },
-];
+export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   const session = await requireAuth();
@@ -47,7 +19,7 @@ export default async function SettingsPage() {
   });
 
   const integrationMap = Object.fromEntries(
-    integrations.map((i) => [i.provider, i])
+    integrations.map((i) => [i.provider, { id: i.id, status: i.status, lastSyncedAt: i.lastSyncedAt }])
   );
 
   return (
@@ -71,77 +43,11 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Integrations */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Integrations</CardTitle>
-            <CardDescription>
-              Connect your app stores and monetization platforms.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {INTEGRATIONS.map((integration) => {
-                const connected = integrationMap[integration.provider];
-                return (
-                  <div key={integration.provider} className="flex items-center justify-between px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{integration.icon}</span>
-                      <div>
-                        <p className="text-sm font-medium">{integration.name}</p>
-                        <p className="text-xs text-muted-foreground">{integration.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {connected ? (
-                        <>
-                          <StatusBadge status={connected.status} />
-                          <Button size="sm" variant="outline">Configure</Button>
-                        </>
-                      ) : (
-                        <>
-                          <a
-                            href={integration.docsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-                          >
-                            Docs <ExternalLink className="h-3 w-3" />
-                          </a>
-                          <Button size="sm" variant="outline">
-                            <Plug className="mr-1.5 h-3.5 w-3.5" />
-                            Connect
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Integrations (interactive, client component) */}
+        <IntegrationsPanel integrationMap={integrationMap} />
 
         {/* Billing */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Billing</CardTitle>
-            <CardDescription>Manage your subscription and payment method.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Current plan</p>
-                <p className="text-xs text-muted-foreground capitalize">
-                  {workspace.plan.toLowerCase()} plan
-                </p>
-              </div>
-              <Button variant="outline" size="sm">
-                Upgrade
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <BillingPanel plan={workspace.plan} />
 
         {/* Account */}
         <Card>

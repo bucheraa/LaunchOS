@@ -15,10 +15,12 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge";
 import { AILoadingState } from "@/components/shared/loading-state";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Sparkles, FileText, Copy, Check } from "lucide-react";
+import {
+  Sparkles, FileText, Copy, Check, Search, TrendingUp, ArrowUpDown, Send, Loader2,
+} from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { cn, platformLabel } from "@/lib/utils";
-import type { ProjectWithRelations, ListingVariantData } from "@/types";
+import type { ProjectWithRelations, ListingVariantData, KeywordSetData } from "@/types";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -34,8 +36,60 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function VariantCard({ variant }: { variant: ListingVariantData }) {
+function Field({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <CopyButton text={value} />
+      </div>
+      {multiline ? (
+        <div className="rounded-md bg-muted/50 p-3 text-sm whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto scrollbar-thin">
+          {value}
+        </div>
+      ) : (
+        <p className="text-sm font-medium">{value}</p>
+      )}
+    </div>
+  );
+}
+
+function VariantCard({
+  variant,
+  projectId,
+}: {
+  variant: ListingVariantData;
+  projectId: string;
+}) {
+  const [pushing, setPushing] = useState(false);
+  const [appId, setAppId] = useState("");
+  const [showPushForm, setShowPushForm] = useState(false);
   const isIOS = variant.platform === "IOS";
+
+  async function pushToStore() {
+    if (!appId.trim()) {
+      toast({ title: "Enter an App ID / package name", variant: "destructive" });
+      return;
+    }
+    setPushing(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/store-copy/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variantId: variant.id, appId: appId.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast({ title: "Push failed", description: json.error, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Pushed to store successfully!" });
+      setShowPushForm(false);
+      window.location.reload();
+    } finally {
+      setPushing(false);
+    }
+  }
 
   return (
     <Card>
@@ -47,6 +101,11 @@ function VariantCard({ variant }: { variant: ListingVariantData }) {
               {variant.isControl && (
                 <span className="rounded-full bg-blue-100 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400">
                   Control
+                </span>
+              )}
+              {variant.pushedToStore && (
+                <span className="rounded-full bg-green-100 dark:bg-green-900/20 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                  Live
                 </span>
               )}
             </div>
@@ -62,8 +121,40 @@ function VariantCard({ variant }: { variant: ListingVariantData }) {
               )}
             </div>
           </div>
-          <StatusBadge status={variant.status} />
+          <div className="flex items-center gap-2 shrink-0">
+            <StatusBadge status={variant.status} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowPushForm((v) => !v)}
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Push
+            </Button>
+          </div>
         </div>
+
+        {showPushForm && (
+          <div className="mt-3 flex gap-2 items-end">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">
+                {isIOS ? "Apple App ID (numeric)" : "Android package name"}
+              </Label>
+              <Input
+                placeholder={isIOS ? "123456789" : "com.example.app"}
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <Button size="sm" onClick={pushToStore} disabled={pushing}>
+              {pushing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Push"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowPushForm(false)}>
+              Cancel
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         {isIOS ? (
@@ -109,21 +200,106 @@ function VariantCard({ variant }: { variant: ListingVariantData }) {
   );
 }
 
-function Field({ label, value, multiline = false }: { label: string; value: string; multiline?: boolean }) {
+function KeywordResearchPanel({
+  project,
+  platform,
+}: {
+  project: ProjectWithRelations;
+  platform: "IOS" | "ANDROID";
+}) {
+  const [loading, setLoading] = useState(false);
+  const [keywordSet, setKeywordSet] = useState<KeywordSetData | null>(
+    project.keywordSets?.find((ks) => ks.platform === platform) ?? null
+  );
+
+  async function research() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/keywords`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        toast({ title: "Keyword research failed", description: json.error, variant: "destructive" });
+        return;
+      }
+      const json = await res.json();
+      setKeywordSet(json.keywordSet);
+      toast({ title: `Found ${json.keywordSet?.keywords?.length ?? 0} keywords` });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const keywords = keywordSet?.keywords ?? [];
+
+  function difficultyColor(difficulty?: number | null) {
+    if (difficulty == null) return "text-muted-foreground";
+    if (difficulty < 30) return "text-green-600 dark:text-green-400";
+    if (difficulty < 60) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
+  }
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <CopyButton text={value} />
-      </div>
-      {multiline ? (
-        <div className="rounded-md bg-muted/50 p-3 text-sm whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto scrollbar-thin">
-          {value}
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Keyword Research
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={research} disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            <span className="ml-1.5">{loading ? "Researching…" : "Research Keywords"}</span>
+          </Button>
         </div>
-      ) : (
-        <p className="text-sm font-medium">{value}</p>
+        <p className="text-xs text-muted-foreground">
+          Combines AI suggestions with real iTunes autocomplete data. Connect AppFollow API for volume + difficulty scores.
+        </p>
+      </CardHeader>
+      {keywords.length > 0 && (
+        <CardContent className="pt-0">
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left p-2.5 font-medium text-muted-foreground">Keyword</th>
+                  <th className="text-right p-2.5 font-medium text-muted-foreground">
+                    <span className="flex items-center justify-end gap-1"><TrendingUp className="h-3 w-3" /> Volume</span>
+                  </th>
+                  <th className="text-right p-2.5 font-medium text-muted-foreground">
+                    <span className="flex items-center justify-end gap-1"><ArrowUpDown className="h-3 w-3" /> Difficulty</span>
+                  </th>
+                  <th className="text-right p-2.5 font-medium text-muted-foreground">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {keywords.map((kw) => (
+                  <tr key={kw.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="p-2.5 font-medium">{kw.keyword}</td>
+                    <td className="p-2.5 text-right text-muted-foreground">
+                      {kw.volume != null ? kw.volume.toLocaleString() : "—"}
+                    </td>
+                    <td className={cn("p-2.5 text-right font-medium", difficultyColor(kw.difficulty))}>
+                      {kw.difficulty != null ? `${kw.difficulty}` : "—"}
+                    </td>
+                    <td className="p-2.5 text-right text-muted-foreground capitalize">
+                      {kw.source.toLowerCase().replace("_", " ")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -173,6 +349,9 @@ export function ProjectStoreCopyTab({ project }: { project: ProjectWithRelations
 
   return (
     <div className="p-6 space-y-6">
+      {/* Keyword Research */}
+      <KeywordResearchPanel project={project} platform={platform} />
+
       {/* Generator */}
       <Card>
         <CardHeader>
@@ -227,7 +406,7 @@ export function ProjectStoreCopyTab({ project }: { project: ProjectWithRelations
           </div>
 
           {loading ? (
-            <AILoadingState message="Generating store copy..." />
+            <AILoadingState message="Generating store copy…" />
           ) : (
             <Button onClick={generate} disabled={loading}>
               <Sparkles className="mr-2 h-4 w-4" />
@@ -278,7 +457,7 @@ export function ProjectStoreCopyTab({ project }: { project: ProjectWithRelations
       ) : (
         <div className="space-y-4">
           {filteredVariants.map((v) => (
-            <VariantCard key={v.id} variant={v} />
+            <VariantCard key={v.id} variant={v} projectId={project.id} />
           ))}
         </div>
       )}

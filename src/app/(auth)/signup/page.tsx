@@ -40,13 +40,13 @@ export default function SignupPage() {
         return;
       }
 
-      // Auto sign in
+      // Auto sign in, then send to onboarding
       await signIn("credentials", {
         email: data.email,
         password: data.password,
         redirect: false,
       });
-      router.push("/dashboard");
+      router.push("/onboarding");
     } finally {
       setLoading(false);
     }

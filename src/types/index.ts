@@ -14,6 +14,10 @@ export type {
   UploadedAsset,
   BillingCustomer,
   Integration,
+  CompetitorApp,
+  KeywordSet,
+  KeywordData,
+  ScreenshotMockup,
 } from "@prisma/client";
 
 export type {
@@ -33,6 +37,7 @@ export type {
   AssetType,
   IntegrationProvider,
   IntegrationStatus,
+  KeywordSource,
 } from "@prisma/client";
 
 // ─── Extended Types ──────────────────────────────────────────────────────────
@@ -50,6 +55,8 @@ export interface ProjectWithRelations {
   landingPageUrl?: string | null;
   appStoreUrl?: string | null;
   playStoreUrl?: string | null;
+  bundleId?: string | null;
+  packageName?: string | null;
   status: string;
   locale: string[];
   createdAt: Date;
@@ -61,8 +68,11 @@ export interface ProjectWithRelations {
   messagingAngles?: MessagingAngleData[];
   listingVariants?: ListingVariantData[];
   screenshotPlans?: ScreenshotPlanData[];
+  screenshotMockups?: ScreenshotMockupData[];
   experiments?: ExperimentData[];
   recommendations?: RecommendationData[];
+  competitors?: CompetitorAppData[];
+  keywordSets?: KeywordSetData[];
   _count?: ProjectCounts;
 }
 
@@ -134,6 +144,8 @@ export interface ListingVariantData {
   keywords: string[];
   status: string;
   isControl: boolean;
+  pushedToStore: boolean;
+  pushedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   audienceSegment?: { name: string } | null;
@@ -174,8 +186,65 @@ export interface ExperimentData {
   startDate?: Date | null;
   endDate?: Date | null;
   result?: string | null;
+  baselineValue?: number | null;
+  resultValue?: number | null;
+  sampleSize?: number | null;
+  confidence?: number | null;
+  winner?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CompetitorAppData {
+  id: string;
+  projectId: string;
+  appId: string;
+  platform: string;
+  name: string;
+  developer?: string | null;
+  rating?: number | null;
+  ratingCount?: number | null;
+  description?: string | null;
+  iconUrl?: string | null;
+  price?: number | null;
+  category?: string | null;
+  keywords: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface KeywordDataItem {
+  id: string;
+  keyword: string;
+  volume?: number | null;
+  difficulty?: number | null;
+  chance?: number | null;
+  rank?: number | null;
+  kei?: number | null;
+  source: string;
+}
+
+export interface KeywordSetData {
+  id: string;
+  projectId: string;
+  platform: string;
+  locale: string;
+  createdAt: Date;
+  keywords: KeywordDataItem[];
+}
+
+export interface ScreenshotMockupData {
+  id: string;
+  projectId: string;
+  screenshotPlanId?: string | null;
+  platform: string;
+  screenIndex: number;
+  headline?: string | null;
+  subtext?: string | null;
+  screenType: string;
+  imageUrl: string;
+  storagePath: string;
+  createdAt: Date;
 }
 
 export interface RecommendationData {

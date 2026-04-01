@@ -1,0 +1,32 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "installCommand": "npm install",
+  "regions": ["fra1"],
+  "env": {
+    "NEXTAUTH_URL": "@nextauth_url",
+    "NEXTAUTH_SECRET": "@nextauth_secret",
+    "DATABASE_URL": "@database_url",
+    "OPENAI_API_KEY": "@openai_api_key",
+    "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@next_public_supabase_anon_key",
+    "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
+    "STRIPE_SECRET_KEY": "@stripe_secret_key",
+    "STRIPE_PUBLISHABLE_KEY": "@stripe_publishable_key",
+    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret"
+  },
+  "functions": {
+    "src/app/api/projects/[id]/analyze/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/projects/[id]/store-copy/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/projects/[id]/screenshots/generate/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/projects/[id]/competitors/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
