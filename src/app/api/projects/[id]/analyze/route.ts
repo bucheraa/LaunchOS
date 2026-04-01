@@ -9,12 +9,22 @@ import {
   generateMessagingAngles,
   buildProjectContext,
 } from "@/lib/ai/service";
+import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Rate limit: 10 AI analyses per user per hour
+    const rl = await rateLimit(`analyze:${session.user.id}`, { max: 10, window: 3600 });
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Try again later." },
+        { status: 429, headers: { "X-RateLimit-Reset": String(rl.reset) } }
+      );
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });

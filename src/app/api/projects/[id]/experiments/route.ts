@@ -4,12 +4,18 @@ import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
 import { getWorkspace } from "@/lib/auth/session";
 import { generateExperimentIdeas, buildProjectContext } from "@/lib/ai/service";
+import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const rl = await rateLimit(`experiments:${session.user.id}`, { max: 20, window: 3600 });
+    if (!rl.success) {
+      return NextResponse.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 });
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });

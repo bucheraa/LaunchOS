@@ -15,16 +15,30 @@ const PLANS = [
     features: ["3 projects", "50 AI generations/mo", "Basic store copy"],
   },
   {
-    id: "PRO",
-    name: "Pro",
+    id: "STARTER",
+    name: "Starter",
     price: "$49/mo",
-    features: ["Unlimited projects", "500 AI generations/mo", "Keyword research", "Screenshot mockups", "Competitor analysis"],
+    features: [
+      "10 projects",
+      "500 AI generations/mo",
+      "Keyword research",
+      "Screenshot mockups",
+      "Competitor analysis",
+      "Store integrations (Apple + Google)",
+    ],
   },
   {
-    id: "AGENCY",
-    name: "Agency",
+    id: "GROWTH",
+    name: "Growth",
     price: "$149/mo",
-    features: ["Everything in Pro", "10 workspaces", "Priority support", "White-label exports"],
+    features: [
+      "Unlimited projects",
+      "Unlimited AI usage",
+      "All integrations",
+      "Priority support",
+      "Custom locales",
+      "Team members",
+    ],
   },
 ];
 

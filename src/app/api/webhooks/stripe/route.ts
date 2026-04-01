@@ -5,6 +5,27 @@ import { db } from "@/lib/db/client";
 import { logger } from "@/lib/utils/logger";
 import type Stripe from "stripe";
 
+// Map Stripe price IDs → workspace Plan enum values
+function planFromPriceId(priceId: string): "STARTER" | "GROWTH" | null {
+  if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return "STARTER";
+  if (priceId === process.env.STRIPE_GROWTH_PRICE_ID) return "GROWTH";
+  return null;
+}
+
+async function syncWorkspacePlan(stripeCustomerId: string, priceId: string | null) {
+  const plan = priceId ? planFromPriceId(priceId) : null;
+  const billing = await db.billingCustomer.findUnique({
+    where: { stripeCustomerId },
+    select: { workspaceId: true },
+  });
+  if (billing?.workspaceId) {
+    await db.workspace.update({
+      where: { id: billing.workspaceId },
+      data: { plan: plan ?? "FREE" },
+    });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = headers().get("stripe-signature");
@@ -34,14 +55,16 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+        const priceId = subscription.items.data[0]?.price.id ?? null;
         await db.billingCustomer.updateMany({
           where: { stripeCustomerId: subscription.customer as string },
           data: {
             stripeSubscriptionId: subscription.id,
-            stripePriceId: subscription.items.data[0]?.price.id,
+            stripePriceId: priceId,
             stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
           },
         });
+        await syncWorkspacePlan(subscription.customer as string, priceId);
         break;
       }
 
@@ -55,6 +78,8 @@ export async function POST(req: NextRequest) {
             stripeCurrentPeriodEnd: null,
           },
         });
+        // Downgrade workspace to FREE
+        await syncWorkspacePlan(subscription.customer as string, null);
         break;
       }
 

@@ -5,12 +5,22 @@ import { db } from "@/lib/db/client";
 import { getWorkspace } from "@/lib/auth/session";
 import { generateStoreCopy, buildProjectContext } from "@/lib/ai/service";
 import { generateStoreCopySchema } from "@/lib/validations/project";
+import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Rate limit: 30 store copy generations per user per hour
+    const rl = await rateLimit(`store-copy:${session.user.id}`, { max: 30, window: 3600 });
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Try again later." },
+        { status: 429, headers: { "X-RateLimit-Reset": String(rl.reset) } }
+      );
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });

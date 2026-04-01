@@ -1,19 +1,24 @@
 {
   "framework": "nextjs",
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "prisma generate && prisma db push && next build",
   "installCommand": "npm install",
   "regions": ["fra1"],
   "env": {
     "NEXTAUTH_URL": "@nextauth_url",
     "NEXTAUTH_SECRET": "@nextauth_secret",
     "DATABASE_URL": "@database_url",
+    "DIRECT_URL": "@direct_url",
     "OPENAI_API_KEY": "@openai_api_key",
     "NEXT_PUBLIC_SUPABASE_URL": "@next_public_supabase_url",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@next_public_supabase_anon_key",
     "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
     "STRIPE_SECRET_KEY": "@stripe_secret_key",
     "STRIPE_PUBLISHABLE_KEY": "@stripe_publishable_key",
-    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret"
+    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret",
+    "STRIPE_STARTER_PRICE_ID": "@stripe_starter_price_id",
+    "STRIPE_GROWTH_PRICE_ID": "@stripe_growth_price_id",
+    "NEXT_PUBLIC_APP_URL": "@next_public_app_url",
+    "REDIS_URL": "@redis_url"
   },
   "functions": {
     "src/app/api/projects/[id]/analyze/route.ts": {
@@ -26,6 +31,9 @@
       "maxDuration": 30
     },
     "src/app/api/projects/[id]/competitors/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/projects/[id]/keywords/route.ts": {
       "maxDuration": 30
     }
   }

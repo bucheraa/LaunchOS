@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAuth, getWorkspace } from "@/lib/auth/session";
+import { db } from "@/lib/db/client";
 import { Sidebar } from "@/components/layout/sidebar";
 
 export default async function DashboardLayout({
@@ -12,6 +13,15 @@ export default async function DashboardLayout({
 
   if (!workspace) {
     redirect("/login");
+  }
+
+  // Gate: redirect new users to onboarding before they can access the dashboard
+  const user = await db.user.findUnique({
+    where: { id: session.user.id! },
+    select: { onboardingDone: true },
+  });
+  if (user && !user.onboardingDone) {
+    redirect("/onboarding");
   }
 
   return (
