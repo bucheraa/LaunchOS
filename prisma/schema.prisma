@@ -1,0 +1,440 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  workspaces      WorkspaceMember[]
+  billingCustomer BillingCustomer?
+}
+
+// ─── Workspace ─────────────────────────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members      WorkspaceMember[]
+  projects     Project[]
+  integrations Integration[]
+  billing      BillingCustomer?
+}
+
+model WorkspaceMember {
+  id          String          @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole   @default(MEMBER)
+  createdAt   DateTime        @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+// ─── Project ───────────────────────────────────────────────────────────────────
+
+model Project {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  name           String
+  platform       Platform[]
+  category       AppCategory
+  description    String         @db.Text
+  targetAudience String?        @db.Text
+  pricingModel   PricingModel   @default(FREE)
+  regions        String[]       @default(["US"])
+  mainFeatures   String[]       @default([])
+  landingPageUrl String?
+  appStoreUrl    String?
+  playStoreUrl   String?
+  status         ProjectStatus  @default(ACTIVE)
+  locale         String[]       @default(["en", "de"])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  analysis         AppAnalysis?
+  listingVariants  ListingVariant[]
+  screenshotPlans  ScreenshotPlan[]
+  experiments      Experiment[]
+  recommendations  Recommendation[]
+  uploadedAssets   UploadedAsset[]
+  audienceSegments AudienceSegment[]
+  valuePropitions  ValueProp[]
+  messagingAngles  MessagingAngle[]
+}
+
+// ─── Analysis ──────────────────────────────────────────────────────────────────
+
+model AppAnalysis {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  productSummary     String   @db.Text
+  keyDifferentiators String[] @default([])
+  competitorContext  String?  @db.Text
+  rawInput           String?  @db.Text
+  analysisStatus     JobStatus @default(PENDING)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model AudienceSegment {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String   @db.Text
+  demographics String?  @db.Text
+  psychographics String? @db.Text
+  painPoints  String[] @default([])
+  goals       String[] @default([])
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  listingVariants ListingVariant[]
+}
+
+model ValueProp {
+  id          String   @id @default(cuid())
+  projectId   String
+  headline    String
+  description String   @db.Text
+  benefit     String
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MessagingAngle {
+  id          String   @id @default(cuid())
+  projectId   String
+  angle       String
+  headline    String
+  subheadline String?
+  bodyText    String?  @db.Text
+  tone        String
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Store Listing ─────────────────────────────────────────────────────────────
+
+model ListingVariant {
+  id                String         @id @default(cuid())
+  projectId         String
+  audienceSegmentId String?
+  platform          Platform
+  locale            String         @default("en")
+  variantName       String
+  appName           String?
+  subtitle          String?
+  promotionalText   String?
+  description       String?        @db.Text
+  shortDescription  String?
+  keywords          String[]       @default([])
+  status            VariantStatus  @default(DRAFT)
+  isControl         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  audienceSegment AudienceSegment? @relation(fields: [audienceSegmentId], references: [id])
+}
+
+// ─── Screenshot Plan ───────────────────────────────────────────────────────────
+
+model ScreenshotPlan {
+  id        String   @id @default(cuid())
+  projectId String
+  platform  Platform
+  locale    String   @default("en")
+  name      String
+  screens   Json     // ScreenItem[]
+  status    JobStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Experiments ───────────────────────────────────────────────────────────────
+
+model Experiment {
+  id              String           @id @default(cuid())
+  projectId       String
+  name            String
+  hypothesis      String           @db.Text
+  elements        String[]         @default([])
+  targetMetric    String
+  priority        Priority         @default(MEDIUM)
+  expectedImpact  String?
+  status          ExperimentStatus @default(PLANNED)
+  startDate       DateTime?
+  endDate         DateTime?
+  result          String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Recommendations ───────────────────────────────────────────────────────────
+
+model Recommendation {
+  id          String             @id @default(cuid())
+  projectId   String
+  title       String
+  description String             @db.Text
+  category    RecommendationCategory
+  priority    Priority           @default(MEDIUM)
+  effort      Effort             @default(MEDIUM)
+  impact      String?
+  status      RecommendationStatus @default(OPEN)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Assets ────────────────────────────────────────────────────────────────────
+
+model UploadedAsset {
+  id         String      @id @default(cuid())
+  projectId  String
+  name       String
+  url        String
+  key        String      // S3 key
+  size       Int
+  mimeType   String
+  assetType  AssetType   @default(SCREENSHOT)
+  createdAt  DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ─── Billing ───────────────────────────────────────────────────────────────────
+
+model BillingCustomer {
+  id                   String   @id @default(cuid())
+  userId               String?  @unique
+  workspaceId          String?  @unique
+  stripeCustomerId     String   @unique
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  stripeCurrentPeriodEnd DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user      User?      @relation(fields: [userId], references: [id])
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+}
+
+// ─── Integrations ──────────────────────────────────────────────────────────────
+
+model Integration {
+  id            String              @id @default(cuid())
+  workspaceId   String
+  provider      IntegrationProvider
+  status        IntegrationStatus   @default(DISCONNECTED)
+  credentials   Json?               // encrypted
+  metadata      Json?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────────────────
+
+enum Plan {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum Platform {
+  IOS
+  ANDROID
+}
+
+enum AppCategory {
+  PRODUCTIVITY
+  SOCIAL
+  HEALTH_FITNESS
+  FINANCE
+  EDUCATION
+  ENTERTAINMENT
+  LIFESTYLE
+  SHOPPING
+  TRAVEL
+  FOOD_DRINK
+  NEWS
+  PHOTO_VIDEO
+  MUSIC
+  GAMES
+  UTILITIES
+  DEVELOPER_TOOLS
+  BUSINESS
+  OTHER
+}
+
+enum PricingModel {
+  FREE
+  FREEMIUM
+  SUBSCRIPTION
+  ONE_TIME
+  PAYWALLED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  DRAFT
+}
+
+enum VariantStatus {
+  DRAFT
+  READY
+  LIVE
+  ARCHIVED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ExperimentStatus {
+  PLANNED
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum RecommendationCategory {
+  STORE_LISTING
+  SCREENSHOTS
+  ASO
+  MONETIZATION
+  ONBOARDING
+  RETENTION
+  ACQUISITION
+  OTHER
+}
+
+enum RecommendationStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Effort {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AssetType {
+  SCREENSHOT
+  ICON
+  FEATURE_GRAPHIC
+  VIDEO
+  OTHER
+}
+
+enum IntegrationProvider {
+  APPLE_APP_STORE_CONNECT
+  GOOGLE_PLAY_DEVELOPER
+  REVENUECAT
+  STRIPE
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  PENDING
+}
