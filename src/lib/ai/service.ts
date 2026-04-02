@@ -9,6 +9,15 @@ import {
   buildExperimentsPrompt,
   buildRecommendationsPrompt,
 } from "./prompts";
+import {
+  DEMO_ANALYSIS,
+  DEMO_AUDIENCE_SEGMENTS,
+  DEMO_MESSAGING,
+  DEMO_STORE_COPY,
+  DEMO_SCREENSHOT_PLAN,
+  DEMO_EXPERIMENTS,
+  DEMO_RECOMMENDATIONS,
+} from "./demo-data";
 import type {
   AIAnalysisResult,
   AIAudienceSegment,
@@ -21,24 +30,40 @@ import type {
 } from "@/types";
 import { logger } from "@/lib/utils/logger";
 
+const DEMO = process.env.DEMO_MODE === "true";
+
+// Simulate a small async delay in demo mode so the UI loading states still show
+function demoDelay(ms = 800) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 // ─── Analysis ─────────────────────────────────────────────────────────────────
 
 export async function analyzeProductInput(
   description: string,
   extraContext?: string
 ): Promise<AIAnalysisResult> {
+  if (DEMO) {
+    logger.info("[DEMO] analyzeProductInput — returning mock data");
+    await demoDelay(1200);
+    return DEMO_ANALYSIS;
+  }
   logger.info("AI: analyzeProductInput");
-  const result = await callOpenAI<AIAnalysisResult>(
+  return callOpenAI<AIAnalysisResult>(
     SYSTEM_PROMPTS.ANALYSIS,
     buildAnalysisPrompt(description, extraContext),
     { temperature: 0.5 }
   );
-  return result;
 }
 
 // ─── Audience Segments ────────────────────────────────────────────────────────
 
 export async function generateAudienceSegments(projectContext: string): Promise<AIAudienceSegment[]> {
+  if (DEMO) {
+    logger.info("[DEMO] generateAudienceSegments — returning mock data");
+    await demoDelay(600);
+    return DEMO_AUDIENCE_SEGMENTS;
+  }
   logger.info("AI: generateAudienceSegments");
   const result = await callOpenAI<{ segments: AIAudienceSegment[] }>(
     SYSTEM_PROMPTS.AUDIENCE,
@@ -54,6 +79,11 @@ export async function generateMessagingAngles(
   projectContext: string,
   segments: string
 ): Promise<{ angles: AIMessagingAngle[]; valueProps: AIValueProp[] }> {
+  if (DEMO) {
+    logger.info("[DEMO] generateMessagingAngles — returning mock data");
+    await demoDelay(600);
+    return DEMO_MESSAGING;
+  }
   logger.info("AI: generateMessagingAngles");
   const result = await callOpenAI<{ angles: AIMessagingAngle[]; valueProps: AIValueProp[] }>(
     SYSTEM_PROMPTS.MESSAGING,
@@ -75,16 +105,19 @@ export async function generateStoreCopy(
   audienceContext?: string,
   messagingContext?: string
 ): Promise<AIStoreCopy> {
+  if (DEMO) {
+    logger.info(`[DEMO] generateStoreCopy [${platform}/${locale}] — returning mock data`);
+    await demoDelay(1000);
+    if (platform === "ios") return { ios: DEMO_STORE_COPY.ios };
+    return { android: DEMO_STORE_COPY.android };
+  }
   logger.info(`AI: generateStoreCopy [${platform}/${locale}]`);
   const result = await callOpenAI<Record<string, unknown>>(
     SYSTEM_PROMPTS.STORE_COPY,
     buildStoreCopyPrompt(projectContext, platform, locale, audienceContext, messagingContext),
     { temperature: 0.7, maxTokens: 3000 }
   );
-
-  if (platform === "ios") {
-    return { ios: result as AIStoreCopy["ios"] };
-  }
+  if (platform === "ios") return { ios: result as AIStoreCopy["ios"] };
   return { android: result as AIStoreCopy["android"] };
 }
 
@@ -95,6 +128,11 @@ export async function generateScreenshotPlan(
   platform: "ios" | "android",
   audienceContext?: string
 ): Promise<AIScreenItem[]> {
+  if (DEMO) {
+    logger.info(`[DEMO] generateScreenshotPlan [${platform}] — returning mock data`);
+    await demoDelay(800);
+    return DEMO_SCREENSHOT_PLAN;
+  }
   logger.info(`AI: generateScreenshotPlan [${platform}]`);
   const result = await callOpenAI<{ screens: AIScreenItem[] }>(
     SYSTEM_PROMPTS.SCREENSHOTS,
@@ -110,6 +148,11 @@ export async function generateExperimentIdeas(
   projectContext: string,
   existingVariants?: string
 ): Promise<AIExperimentIdea[]> {
+  if (DEMO) {
+    logger.info("[DEMO] generateExperimentIdeas — returning mock data");
+    await demoDelay(800);
+    return DEMO_EXPERIMENTS;
+  }
   logger.info("AI: generateExperimentIdeas");
   const result = await callOpenAI<{ experiments: AIExperimentIdea[] }>(
     SYSTEM_PROMPTS.EXPERIMENTS,
@@ -124,6 +167,11 @@ export async function generateExperimentIdeas(
 export async function generateRecommendations(
   projectContext: string
 ): Promise<AIRecommendation[]> {
+  if (DEMO) {
+    logger.info("[DEMO] generateRecommendations — returning mock data");
+    await demoDelay(700);
+    return DEMO_RECOMMENDATIONS;
+  }
   logger.info("AI: generateRecommendations");
   const result = await callOpenAI<{ recommendations: AIRecommendation[] }>(
     SYSTEM_PROMPTS.RECOMMENDATIONS,

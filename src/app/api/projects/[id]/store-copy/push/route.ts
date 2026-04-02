@@ -28,6 +28,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const body = await req.json();
     const parsed = schema.safeParse(body);
+
+    // In DEMO_MODE, simulate a successful push without hitting real store APIs
+    if (process.env.DEMO_MODE === "true") {
+      if (!parsed.success) return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      await new Promise((r) => setTimeout(r, 1000));
+      await db.listingVariant.update({
+        where: { id: parsed.data.variantId },
+        data: { pushedToStore: true, pushedAt: new Date(), status: "LIVE" },
+      });
+      return NextResponse.json({ success: true, demo: true });
+    }
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
     }

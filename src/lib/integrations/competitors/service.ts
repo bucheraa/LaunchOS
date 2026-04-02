@@ -7,9 +7,12 @@
  * This gives real competitive intelligence at zero API cost.
  */
 
+import { DEMO_COMPETITORS } from "@/lib/ai/demo-data";
 import { db } from "@/lib/db/client";
 import { logger } from "@/lib/utils/logger";
 import type { Platform } from "@prisma/client";
+
+const DEMO = process.env.DEMO_MODE === "true";
 
 export interface CompetitorData {
   appId: string;
@@ -34,6 +37,25 @@ export async function searchIosCompetitors(
   country = "us",
   limit = 8
 ): Promise<CompetitorData[]> {
+  if (DEMO) {
+    logger.info("[DEMO] searchIosCompetitors — returning mock data");
+    await new Promise((r) => setTimeout(r, 700));
+    return DEMO_COMPETITORS.filter((c) => c.platform === "IOS").map((c) => ({
+      appId: c.appId,
+      name: c.name,
+      developer: c.developer ?? "",
+      icon: c.iconUrl ?? "",
+      rating: c.rating ?? null,
+      ratingCount: c.ratingCount ?? null,
+      description: c.description ?? "",
+      shortDesc: null,
+      appStoreUrl: `https://apps.apple.com/app/id${c.appId}`,
+      playStoreUrl: null,
+      price: c.price === 0 ? "Free" : String(c.price),
+      category: c.category ?? "",
+      keywords: c.keywords,
+    }));
+  }
   const url = new URL("https://itunes.apple.com/search");
   url.searchParams.set("term", query);
   url.searchParams.set("entity", "software");
@@ -78,6 +100,25 @@ export async function searchAndroidCompetitors(
   country = "us",
   limit = 8
 ): Promise<CompetitorData[]> {
+  if (DEMO) {
+    logger.info("[DEMO] searchAndroidCompetitors — returning mock data");
+    await new Promise((r) => setTimeout(r, 700));
+    return DEMO_COMPETITORS.filter((c) => c.platform === "ANDROID").map((c) => ({
+      appId: c.appId,
+      name: c.name,
+      developer: c.developer ?? "",
+      icon: c.iconUrl ?? "",
+      rating: c.rating ?? null,
+      ratingCount: c.ratingCount ?? null,
+      description: c.description ?? "",
+      shortDesc: null,
+      appStoreUrl: null,
+      playStoreUrl: `https://play.google.com/store/apps/details?id=${c.appId}`,
+      price: c.price === 0 ? "Free" : String(c.price),
+      category: c.category ?? "",
+      keywords: c.keywords,
+    }));
+  }
   try {
     // Dynamic import to avoid issues when package not installed
     const gplay = await import("google-play-scraper").then((m) => m.default ?? m);

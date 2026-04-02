@@ -8,6 +8,11 @@ import { uploadMockup } from "@/lib/storage/supabase-storage";
 import { logger } from "@/lib/utils/logger";
 import { z } from "zod";
 
+// In DEMO_MODE, return a placeholder image URL instead of generating real PNGs
+// (avoids needing Supabase Storage credentials)
+const DEMO_PLACEHOLDER_URL = "https://placehold.co/1290x2796/6C47FF/FFFFFF/png?text=Demo+Mockup";
+const DEMO = process.env.DEMO_MODE === "true";
+
 const singleSchema = z.object({
   screenshotPlanId: z.string().cuid().optional(),
   platform: z.enum(["IOS", "ANDROID"]),
@@ -42,6 +47,47 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const body = await req.json();
+
+    // ── DEMO MODE: return placeholder mockups, no Supabase needed ────────────
+    if (DEMO) {
+      await new Promise((r) => setTimeout(r, 800));
+      if (body.batch === true) {
+        const plan = await db.screenshotPlan.findFirst({
+          where: { id: body.screenshotPlanId, projectId: params.id },
+        });
+        if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+        const screens = (plan.screens as any[]) ?? [];
+        const mockups = await Promise.all(screens.map((screen: any, i: number) =>
+          db.screenshotMockup.create({
+            data: {
+              projectId: params.id,
+              screenshotPlanId: plan.id,
+              platform: body.platform ?? plan.platform,
+              screenIndex: i,
+              headline: screen.headline ?? null,
+              subtext: screen.subtext ?? null,
+              screenType: screen.screenType ?? "feature",
+              imageUrl: `${DEMO_PLACEHOLDER_URL}&text=${encodeURIComponent(screen.headline ?? `Screen ${i + 1}`)}`,
+              storagePath: `demo/mockup-${plan.id}-${i}.png`,
+            },
+          })
+        ));
+        return NextResponse.json({ success: true, count: mockups.length, demo: true });
+      }
+      const mockup = await db.screenshotMockup.create({
+        data: {
+          projectId: params.id,
+          platform: body.platform ?? "IOS",
+          screenIndex: body.screenOrder ?? 1,
+          headline: body.headline ?? null,
+          subtext: body.subtext ?? null,
+          screenType: body.screenType ?? "feature",
+          imageUrl: `${DEMO_PLACEHOLDER_URL}&text=${encodeURIComponent(body.headline ?? "Demo")}`,
+          storagePath: `demo/mockup-${params.id}-${Date.now()}.png`,
+        },
+      });
+      return NextResponse.json({ success: true, mockup, demo: true });
+    }
 
     // ── Batch: generate all screens from a plan ──────────────────────────────
     if (body.batch === true) {

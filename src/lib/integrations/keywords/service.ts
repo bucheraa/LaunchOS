@@ -11,9 +11,12 @@
 
 import { createAppFollowClient } from "./appfollow";
 import { getKeywordSuggestions, enrichWithCompetition } from "./itunes";
+import { DEMO_KEYWORDS } from "@/lib/ai/demo-data";
 import { db } from "@/lib/db/client";
 import { logger } from "@/lib/utils/logger";
 import type { Platform } from "@prisma/client";
+
+const DEMO = process.env.DEMO_MODE === "true";
 
 export interface NormalizedKeyword {
   keyword: string;
@@ -32,6 +35,40 @@ export async function researchKeywords(
   seedKeywords: string[],
   appId?: string // App Store app ID or bundle ID (for AppFollow)
 ): Promise<NormalizedKeyword[]> {
+  if (DEMO) {
+    logger.info("[DEMO] researchKeywords — returning mock keyword data");
+    await new Promise((r) => setTimeout(r, 600));
+    const keywordSet = await db.keywordSet.create({
+      data: {
+        projectId,
+        platform,
+        locale,
+        source: "ITUNES_AUTOCOMPLETE",
+        keywords: {
+          createMany: {
+            data: DEMO_KEYWORDS.map((k) => ({
+              keyword: k.keyword,
+              searchVolume: k.volume,
+              difficulty: k.difficulty,
+              chance: k.chance,
+              source: k.source as any,
+            })),
+          },
+        },
+      },
+      include: { keywords: true },
+    });
+    return DEMO_KEYWORDS.map((k) => ({
+      keyword: k.keyword,
+      volume: k.volume,
+      difficulty: k.difficulty,
+      chance: k.chance,
+      currentRank: null,
+      trending: false,
+      source: k.source as NormalizedKeyword["source"],
+    }));
+  }
+
   const appFollow = createAppFollowClient();
   const platformLower = platform.toLowerCase() as "ios" | "android";
   const country = locale === "de" ? "de" : "us";

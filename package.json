@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:demo": "cp .env.demo .env.local && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,7 +14,8 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run db:seed",
+    "demo:setup": "docker-compose up -d && sleep 3 && npx prisma db push && npm run db:seed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -59,7 +61,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/google-play-scraper": "^9.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
