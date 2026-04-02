@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { LaunchKitButton } from "@/components/projects/launch-kit-button";
 
 // ─── ASO Health Score ────────────────────────────────────────────────────────
 
@@ -206,6 +207,16 @@ export function ProjectOverviewTab({ project }: { project: ProjectWithRelations 
 
   return (
     <div className="p-6 space-y-6">
+
+      {/* One-Click Launch Kit */}
+      <LaunchKitButton
+        projectId={project.id}
+        platform={project.platform}
+        hasAnalysis={hasAnalysis}
+        hasKeywords={hasKeywords}
+        hasVariants={hasVariants}
+        hasRecommendations={hasRecs}
+      />
 
       {/* Top row: ASO score + stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
