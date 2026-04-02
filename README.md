@@ -25,6 +25,27 @@ Generate store copy, plan screenshots, research keywords, track A/B experiments,
 
 ## Local Development
 
+### Local Demo on macOS
+
+Run the demo locally without PostgreSQL, Supabase, Stripe, Redis, or API keys:
+
+```bash
+npm install
+npm run dev:demo
+# → http://localhost:3000
+```
+
+What this does:
+
+- Copies `.env.demo` to `.env.local`
+- Enables an in-memory demo workspace with automatic demo sign-in
+- Replaces database-backed mutations and external integrations with local mock behaviour
+
+Notes:
+
+- Demo changes are stored in memory only and reset when the dev server restarts.
+- The production/local full-stack setup below is still available when you want the real database flow.
+
 ### Prerequisites
 
 - Node.js 18+

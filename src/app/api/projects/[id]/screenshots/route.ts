@@ -1,25 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { generateScreenshotPlan, buildProjectContext } from "@/lib/ai/service";
 import { generateScreenshotPlanSchema } from "@/lib/validations/project";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { createDemoScreenshotPlan } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const workspace = await getWorkspace(session.user.id);
-    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-
-    const project = await db.project.findFirst({
-      where: { id: params.id, workspaceId: workspace.id },
-      include: { audienceSegments: { where: { isPrimary: true }, take: 1 } },
-    });
-    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const body = await req.json();
     const parsed = generateScreenshotPlanSchema.safeParse({
@@ -29,6 +20,21 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
     }
+
+    if (isDemoMode) {
+      const plan = await createDemoScreenshotPlan(params.id, parsed.data);
+      if (!plan) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json(plan, { status: 201 });
+    }
+
+    const workspace = await getWorkspace(session.user.id);
+    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+
+    const project = await db.project.findFirst({
+      where: { id: params.id, workspaceId: workspace.id },
+      include: { audienceSegments: { where: { isPrimary: true }, take: 1 } },
+    });
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
     const { platform, locale, planName } = parsed.data;
     const projectContext = buildProjectContext(project as any);

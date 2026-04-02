@@ -3,6 +3,7 @@ import { requireAuth, getWorkspace } from "@/lib/auth/session";
 import { createCustomerPortalSession } from "@/lib/integrations/stripe/client";
 import { db } from "@/lib/db/client";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
 
 export async function POST(_req: NextRequest) {
   try {
@@ -10,6 +11,11 @@ export async function POST(_req: NextRequest) {
     const workspace = await getWorkspace(session.user.id!);
     if (!workspace) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    if (isDemoMode) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      return NextResponse.json({ url: `${appUrl}/settings?demoPortal=1` });
     }
 
     const billing = await db.billingCustomer.findUnique({

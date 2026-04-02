@@ -88,4 +88,42 @@
     background-color: hsl(var(--border));
     border-radius: 3px;
   }
+
+  /* Subtle glass card effect */
+  .glass-card {
+    backdrop-filter: blur(12px);
+    background-color: hsl(var(--card) / 0.8);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Fade-in animation */
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out both;
+  }
+
+  /* Pulse dot for live indicators */
+  @keyframes pulse-ring {
+    0%   { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2);   opacity: 0; }
+  }
+  .pulse-dot::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
 }

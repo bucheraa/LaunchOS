@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { generateRecommendations, buildProjectContext } from "@/lib/ai/service";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { createDemoRecommendations } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (isDemoMode) {
+      const recommendations = await createDemoRecommendations(params.id);
+      if (!recommendations) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ count: recommendations.length }, { status: 201 });
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });

@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { createProjectSchema } from "@/lib/validations/project";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { createDemoProject, getDemoProjects } from "@/lib/demo/store";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (isDemoMode) {
+      return NextResponse.json({ data: getDemoProjects() });
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
@@ -29,17 +33,23 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const workspace = await getWorkspace(session.user.id);
-    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
     const body = await req.json();
     const parsed = createProjectSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
     }
+
+    if (isDemoMode) {
+      const project = createDemoProject(parsed.data);
+      logger.info(`Demo project created: ${project.id}`);
+      return NextResponse.json(project, { status: 201 });
+    }
+
+    const workspace = await getWorkspace(session.user.id);
+    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
     const {
       landingPageUrl, appStoreUrl, playStoreUrl, ...rest
