@@ -28,6 +28,7 @@ export default async function DashboardLayout({
         <Sidebar
           user={session.user}
           workspaceName={workspace.name}
+          plan={workspace.plan}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <main className="flex-1 overflow-y-auto scrollbar-thin">
@@ -52,6 +53,7 @@ export default async function DashboardLayout({
       <Sidebar
         user={session.user}
         workspaceName={workspace.name}
+        plan={workspace.plan}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto scrollbar-thin">
