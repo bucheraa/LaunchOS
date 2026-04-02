@@ -6,6 +6,8 @@ import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { isDemoMode } from "@/lib/demo/mode";
+import { getDemoIntegrations } from "@/lib/demo/store";
 
 export const metadata = { title: "Settings" };
 
@@ -14,9 +16,11 @@ export default async function SettingsPage() {
   const workspace = await getWorkspace(session.user.id!);
   if (!workspace) return null;
 
-  const integrations = await db.integration.findMany({
-    where: { workspaceId: workspace.id },
-  });
+  const integrations = isDemoMode
+    ? getDemoIntegrations()
+    : await db.integration.findMany({
+        where: { workspaceId: workspace.id },
+      });
 
   const integrationMap = Object.fromEntries(
     integrations.map((i) => [i.provider, { id: i.id, status: i.status, lastSyncedAt: i.lastSyncedAt }])

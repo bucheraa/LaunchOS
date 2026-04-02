@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:demo": "cp .env.demo .env.local && next dev",
+    "demo:setup": "cp .env.demo .env.local",
+    "dev:demo": "npm run demo:setup && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -14,8 +15,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force && npm run db:seed",
-    "demo:setup": "docker-compose up -d && sleep 3 && npx prisma db push && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run db:seed"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -64,6 +64,7 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.27",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
     "postcss": "^8",

@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
-import { generateMockupPng } from "@/lib/screenshot/generator";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { uploadMockup } from "@/lib/storage/supabase-storage";
 import { logger } from "@/lib/utils/logger";
 import { z } from "zod";
-
-// In DEMO_MODE, return a placeholder image URL instead of generating real PNGs
-// (avoids needing Supabase Storage credentials)
-const DEMO_PLACEHOLDER_URL = "https://placehold.co/1290x2796/6C47FF/FFFFFF/png?text=Demo+Mockup";
-const DEMO = process.env.DEMO_MODE === "true";
+import { isDemoMode } from "@/lib/demo/mode";
+import { generateDemoMockups } from "@/lib/demo/store";
 
 const singleSchema = z.object({
   screenshotPlanId: z.string().cuid().optional(),
@@ -27,7 +21,7 @@ const singleSchema = z.object({
 
 const batchSchema = z.object({
   screenshotPlanId: z.string().cuid(),
-  platform: z.enum(["IOS", "ANDROID"]),
+  platform: z.enum(["IOS", "ANDROID"]).optional(),
   backgroundColor: z.string().default("#6C47FF"),
 });
 
@@ -35,8 +29,18 @@ const batchSchema = z.object({
 // Body: single screen or { batch: true, screenshotPlanId, platform }
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json();
+
+    // ── DEMO MODE: return placeholder mockups, no Supabase needed ────────────
+    if (isDemoMode) {
+      await new Promise((r) => setTimeout(r, 800));
+      const result = generateDemoMockups(params.id, body);
+      if (!result) return NextResponse.json({ error: "Plan or project not found" }, { status: 404 });
+      return NextResponse.json({ success: true, ...result, demo: true });
+    }
 
     const workspace = await getWorkspace(session.user.id);
     if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
@@ -45,49 +49,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id, workspaceId: workspace.id },
     });
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-    const body = await req.json();
-
-    // ── DEMO MODE: return placeholder mockups, no Supabase needed ────────────
-    if (DEMO) {
-      await new Promise((r) => setTimeout(r, 800));
-      if (body.batch === true) {
-        const plan = await db.screenshotPlan.findFirst({
-          where: { id: body.screenshotPlanId, projectId: params.id },
-        });
-        if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
-        const screens = (plan.screens as any[]) ?? [];
-        const mockups = await Promise.all(screens.map((screen: any, i: number) =>
-          db.screenshotMockup.create({
-            data: {
-              projectId: params.id,
-              screenshotPlanId: plan.id,
-              platform: body.platform ?? plan.platform,
-              screenIndex: i,
-              headline: screen.headline ?? null,
-              subtext: screen.subtext ?? null,
-              screenType: screen.screenType ?? "feature",
-              imageUrl: `${DEMO_PLACEHOLDER_URL}&text=${encodeURIComponent(screen.headline ?? `Screen ${i + 1}`)}`,
-              storagePath: `demo/mockup-${plan.id}-${i}.png`,
-            },
-          })
-        ));
-        return NextResponse.json({ success: true, count: mockups.length, demo: true });
-      }
-      const mockup = await db.screenshotMockup.create({
-        data: {
-          projectId: params.id,
-          platform: body.platform ?? "IOS",
-          screenIndex: body.screenOrder ?? 1,
-          headline: body.headline ?? null,
-          subtext: body.subtext ?? null,
-          screenType: body.screenType ?? "feature",
-          imageUrl: `${DEMO_PLACEHOLDER_URL}&text=${encodeURIComponent(body.headline ?? "Demo")}`,
-          storagePath: `demo/mockup-${params.id}-${Date.now()}.png`,
-        },
-      });
-      return NextResponse.json({ success: true, mockup, demo: true });
-    }
 
     // ── Batch: generate all screens from a plan ──────────────────────────────
     if (body.batch === true) {
@@ -105,8 +66,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
       const mockups = await Promise.all(
         screens.map(async (screen: any) => {
+          const { generateMockupPng } = await import("@/lib/screenshot/generator");
           const pngBuffer = await generateMockupPng({
-            platform: parsed.data.platform,
+            platform: parsed.data.platform ?? (plan.platform as "IOS" | "ANDROID"),
             headline: screen.headline,
             subtext: screen.subtext,
             backgroundColor: parsed.data.backgroundColor,
@@ -119,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             data: {
               projectId: project.id,
               screenshotPlanId: plan.id,
-              platform: parsed.data.platform,
+              platform: parsed.data.platform ?? (plan.platform as "IOS" | "ANDROID"),
               screenOrder: screen.order,
               headline: screen.headline,
               subtext: screen.subtext ?? null,
@@ -142,6 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
     }
 
+    const { generateMockupPng } = await import("@/lib/screenshot/generator");
     const pngBuffer = await generateMockupPng({
       platform: parsed.data.platform,
       headline: parsed.data.headline,

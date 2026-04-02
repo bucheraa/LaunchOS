@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { isDemoMode } from "@/lib/demo/mode";
 import {
   Zap,
   ArrowRight,
@@ -73,6 +74,9 @@ const TESTIMONIALS = [
 ];
 
 export default function LandingPage() {
+  const authHref = isDemoMode ? "/dashboard" : "/login";
+  const ctaHref = isDemoMode ? "/dashboard" : "/signup";
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
@@ -94,10 +98,10 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/login">Log in</Link>
+              <Link href={authHref}>Log in</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link href="/signup">
+              <Link href={ctaHref}>
                 Get started <ArrowRight className="ml-1 h-3.5 w-3.5" />
               </Link>
             </Button>
@@ -124,12 +128,12 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <Button size="lg" asChild>
-                <Link href="/signup">
+                <Link href={ctaHref}>
                   Start free <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/login">View demo</Link>
+                <Link href={authHref}>View demo</Link>
               </Button>
             </div>
             <p className="mt-4 text-xs text-muted-foreground">

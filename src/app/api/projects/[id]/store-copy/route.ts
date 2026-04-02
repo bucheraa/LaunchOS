@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { generateStoreCopy, buildProjectContext } from "@/lib/ai/service";
 import { generateStoreCopySchema } from "@/lib/validations/project";
 import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { createDemoStoreCopy } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json();
+    const parsed = generateStoreCopySchema.safeParse({ ...body, projectId: params.id });
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
+    }
+
+    if (isDemoMode) {
+      const variant = await createDemoStoreCopy(params.id, parsed.data);
+      if (!variant) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json(variant, { status: 201 });
+    }
 
     // Rate limit: 30 store copy generations per user per hour
     const rl = await rateLimit(`store-copy:${session.user.id}`, { max: 30, window: 3600 });
@@ -33,12 +45,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
     });
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-    const body = await req.json();
-    const parsed = generateStoreCopySchema.safeParse({ ...body, projectId: params.id });
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
-    }
 
     const { platform, locale, audienceSegmentId, variantName } = parsed.data;
 

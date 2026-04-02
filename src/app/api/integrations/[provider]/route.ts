@@ -4,14 +4,18 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { createAppleClientFromCredentials } from "@/lib/integrations/apple/client";
 import { createGooglePlayClient } from "@/lib/integrations/google/client";
 import { logger } from "@/lib/utils/logger";
 import { z } from "zod";
+import { isDemoMode } from "@/lib/demo/mode";
+import {
+  disconnectDemoIntegration,
+  testDemoIntegration,
+  upsertDemoIntegration,
+} from "@/lib/demo/store";
 
 const connectSchema = z.discriminatedUnion("provider", [
   z.object({
@@ -42,14 +46,34 @@ export async function POST(
   { params }: { params: { provider: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const workspace = await getWorkspace(session.user.id);
-    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
     const body = await req.json();
     const action = body.action as string | undefined;
+
+    if (isDemoMode) {
+      if (action === "test") {
+        const result = testDemoIntegration(params.provider);
+        if (!result) {
+          return NextResponse.json({ error: "Not connected" }, { status: 400 });
+        }
+
+        return NextResponse.json({ success: true, apps: result.apps });
+      }
+
+      const parsed = connectSchema.safeParse({ ...body, provider: params.provider });
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.errors[0]?.message }, { status: 400 });
+      }
+
+      const { provider, ...credFields } = parsed.data;
+      const integration = upsertDemoIntegration(provider, credFields as Record<string, string>);
+      return NextResponse.json({ id: integration.id, status: integration.status });
+    }
+
+    const workspace = await getWorkspace(session.user.id);
+    if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });
 
     // ── Test connection ──────────────────────────────────────────────────────
     if (action === "test") {
@@ -136,8 +160,13 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { provider: string } }
 ) {
-  const session = await getServerSession(authOptions);
+  const session = await requireApiSession();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (isDemoMode) {
+    disconnectDemoIntegration(params.provider);
+    return NextResponse.json({ success: true });
+  }
 
   const workspace = await getWorkspace(session.user.id);
   if (!workspace) return NextResponse.json({ error: "No workspace" }, { status: 404 });

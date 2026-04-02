@@ -8,25 +8,39 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Folders, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { timeAgo, categoryLabel, platformLabel } from "@/lib/utils";
+import { isDemoMode } from "@/lib/demo/mode";
+import { getDemoProjects } from "@/lib/demo/store";
 
 export default async function ProjectsPage() {
   const session = await requireAuth();
   const workspace = await getWorkspace(session.user.id!);
   if (!workspace) return null;
 
-  const projects = await db.project.findMany({
-    where: { workspaceId: workspace.id },
-    include: {
-      _count: {
-        select: {
-          listingVariants: true,
-          experiments: true,
-          recommendations: { where: { status: "OPEN" } },
+  const projects = isDemoMode
+    ? getDemoProjects().map((project) => ({
+        ...project,
+        _count: {
+          listingVariants: project._count?.listingVariants ?? 0,
+          experiments: project._count?.experiments ?? 0,
+          recommendations:
+            project.recommendations?.filter((recommendation) => recommendation.status === "OPEN")
+              .length ?? 0,
+          audienceSegments: project._count?.audienceSegments ?? 0,
         },
-      },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+      }))
+    : await db.project.findMany({
+        where: { workspaceId: workspace.id },
+        include: {
+          _count: {
+            select: {
+              listingVariants: true,
+              experiments: true,
+              recommendations: { where: { status: "OPEN" } },
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
 
   return (
     <div>

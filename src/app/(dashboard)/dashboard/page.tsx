@@ -16,36 +16,47 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatDate, timeAgo, categoryLabel, platformLabel } from "@/lib/utils";
+import { isDemoMode } from "@/lib/demo/mode";
+import { getDemoProjects } from "@/lib/demo/store";
 
 export default async function DashboardPage() {
   const session = await requireAuth();
   const workspace = await getWorkspace(session.user.id!);
   if (!workspace) return null;
 
-  const projects = await db.project.findMany({
-    where: { workspaceId: workspace.id },
-    include: {
-      _count: {
-        select: {
-          listingVariants: true,
-          experiments: true,
-          recommendations: true,
+  const projects = isDemoMode
+    ? getDemoProjects()
+        .map((project) => ({
+          ...project,
+          recommendations: (project.recommendations ?? [])
+            .filter((recommendation) => recommendation.status === "OPEN")
+            .slice(0, 2),
+        }))
+        .slice(0, 10)
+    : await db.project.findMany({
+        where: { workspaceId: workspace.id },
+        include: {
+          _count: {
+            select: {
+              listingVariants: true,
+              experiments: true,
+              recommendations: true,
+            },
+          },
+          recommendations: {
+            where: { status: "OPEN" },
+            orderBy: { priority: "desc" },
+            take: 2,
+          },
         },
-      },
-      recommendations: {
-        where: { status: "OPEN" },
-        orderBy: { priority: "desc" },
-        take: 2,
-      },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 10,
-  });
+        orderBy: { updatedAt: "desc" },
+        take: 10,
+      });
 
   const stats = {
     totalProjects: projects.length,
-    totalVariants: projects.reduce((a, p) => a + p._count.listingVariants, 0),
-    totalExperiments: projects.reduce((a, p) => a + p._count.experiments, 0),
+    totalVariants: projects.reduce((a, p) => a + (p._count?.listingVariants ?? 0), 0),
+    totalExperiments: projects.reduce((a, p) => a + (p._count?.experiments ?? 0), 0),
     openRecommendations: projects.reduce(
       (a, p) => a + p.recommendations.length,
       0

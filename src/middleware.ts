@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isDemoMode } from "@/lib/demo/mode";
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ["/login", "/signup", "/"];
@@ -21,6 +22,13 @@ function isPublic(pathname: string): boolean {
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (isDemoMode) {
+    if (pathname === "/login" || pathname === "/signup") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    return NextResponse.next();
+  }
 
   // Always allow public routes
   if (isPublic(pathname)) {

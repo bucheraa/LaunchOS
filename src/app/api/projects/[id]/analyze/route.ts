@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import {
   analyzeProductInput,
   generateAudienceSegments,
@@ -11,11 +9,23 @@ import {
 } from "@/lib/ai/service";
 import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { runDemoAnalysis } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json();
+    const extraContext = body.additionalContext as string | undefined;
+
+    if (isDemoMode) {
+      const project = await runDemoAnalysis(params.id, extraContext);
+      if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      logger.info(`Demo analysis complete for project: ${project.id}`);
+      return NextResponse.json({ message: "Analysis complete", demo: true });
+    }
 
     // Rate limit: 10 AI analyses per user per hour
     const rl = await rateLimit(`analyze:${session.user.id}`, { max: 10, window: 3600 });
@@ -33,9 +43,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { id: params.id, workspaceId: workspace.id },
     });
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
-
-    const body = await req.json();
-    const extraContext = body.additionalContext as string | undefined;
 
     // Update analysis status to running
     await db.appAnalysis.upsert({
@@ -129,10 +136,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     logger.error(`POST /api/projects/${params.id}/analyze`, error);
 
     // Update analysis to failed
-    await db.appAnalysis.updateMany({
-      where: { projectId: params.id },
-      data: { analysisStatus: "FAILED" },
-    }).catch(() => {});
+    if (!isDemoMode) {
+      await db.appAnalysis.updateMany({
+        where: { projectId: params.id },
+        data: { analysisStatus: "FAILED" },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
   }

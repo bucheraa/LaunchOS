@@ -3,6 +3,8 @@ import { requireAuth, getWorkspace } from "@/lib/auth/session";
 import { getStripe, STRIPE_PLANS, getOrCreateStripeCustomer } from "@/lib/integrations/stripe/client";
 import { db } from "@/lib/db/client";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { setDemoPlan } from "@/lib/demo/store";
 
 const PLAN_MAP: Record<string, keyof typeof STRIPE_PLANS> = {
   STARTER: "STARTER",
@@ -21,6 +23,12 @@ export async function POST(req: NextRequest) {
     const planKey = PLAN_MAP[body.plan];
     if (!planKey) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
+    if (isDemoMode) {
+      setDemoPlan(planKey);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+      return NextResponse.json({ url: `${appUrl}/settings?demoCheckout=1&plan=${planKey}` });
     }
 
     const plan = STRIPE_PLANS[planKey];

@@ -4,6 +4,8 @@ import { db } from "@/lib/db/client";
 import { signupSchema } from "@/lib/validations/auth";
 import { slugify } from "@/lib/utils";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { updateDemoOnboarding } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +20,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, email, password, workspaceName } = parsed.data;
+
+    if (isDemoMode) {
+      updateDemoOnboarding(0, false);
+      return NextResponse.json({
+        message: "Demo account ready",
+        userId: "cdemouser00000000000000001",
+        demo: true,
+      });
+    }
 
     // Check existing user
     const existing = await db.user.findUnique({ where: { email } });

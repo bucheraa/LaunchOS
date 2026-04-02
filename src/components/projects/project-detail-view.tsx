@@ -45,7 +45,7 @@ export function ProjectDetailView({ project, defaultTab = "overview" }: Props) {
         title={project.name}
         actions={
           <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${project.id}/settings`}>
+            <Link href="/settings">
               <Settings className="mr-1.5 h-3.5 w-3.5" />
               Settings
             </Link>

@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth/options";
 import { db } from "@/lib/db/client";
-import { getWorkspace } from "@/lib/auth/session";
+import { getWorkspace, requireApiSession } from "@/lib/auth/session";
 import { generateExperimentIdeas, buildProjectContext } from "@/lib/ai/service";
 import { rateLimit } from "@/lib/rate-limit";
 import { logger } from "@/lib/utils/logger";
+import { isDemoMode } from "@/lib/demo/mode";
+import { createDemoExperiments } from "@/lib/demo/store";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireApiSession();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    if (isDemoMode) {
+      const experiments = await createDemoExperiments(params.id);
+      if (!experiments) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+      return NextResponse.json({ count: experiments.length }, { status: 201 });
+    }
 
     const rl = await rateLimit(`experiments:${session.user.id}`, { max: 20, window: 3600 });
     if (!rl.success) {
