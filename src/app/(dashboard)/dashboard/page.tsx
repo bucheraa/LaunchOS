@@ -8,25 +8,20 @@ import { EmptyState } from "@/components/shared/empty-state";
 import {
   Folders, Plus, TrendingUp, FlaskConical, Lightbulb, ArrowRight,
   CheckCircle2, Zap, Target, BarChart3, Clock, Rocket, Sparkles,
-  AlertTriangle, Search, FileText, ImageIcon, ChevronRight,
+  AlertTriangle, Search, FileText, ChevronRight, Timer, Brain,
+  Trophy, Activity, Star,
 } from "lucide-react";
 import Link from "next/link";
 import { timeAgo, categoryLabel, platformLabel } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo/mode";
 import { getDemoProjects } from "@/lib/demo/store";
+import { cn } from "@/lib/utils";
 
 const PLAN_LIMITS: Record<string, { projects: number; aiGenerations: number }> = {
   FREE:    { projects: 3,        aiGenerations: 50 },
   STARTER: { projects: 10,       aiGenerations: 500 },
   GROWTH:  { projects: Infinity, aiGenerations: Infinity },
 };
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
 
 function getAsoScore(project: { _count?: { listingVariants?: number; experiments?: number; recommendations?: number } }) {
   const variants = project._count?.listingVariants ?? 0;
@@ -35,85 +30,61 @@ function getAsoScore(project: { _count?: { listingVariants?: number; experiments
   return Math.max(10, Math.min(100, 30 + variants * 10 + exps * 15 - openRecs * 5));
 }
 
-// Smart next-action banner logic
-function getNextAction(projects: any[], stats: { totalProjects: number; openRecommendations: number; totalVariants: number; totalExperiments: number }) {
-  if (stats.totalProjects === 0) {
-    return {
-      type: "create" as const,
-      icon: Rocket,
-      title: "Create your first project",
-      description: "Add an app and let AI generate your entire launch kit in under 2 minutes.",
-      href: "/projects/new",
-      cta: "Create project",
-      color: "from-violet-500/10 to-purple-500/10",
-      border: "border-violet-200 dark:border-violet-800",
-      iconBg: "bg-violet-500/10",
-      iconColor: "text-violet-500",
-    };
-  }
+function getAsoColor(score: number) {
+  if (score >= 70) return { text: "text-emerald-500", bg: "bg-emerald-500", ring: "#10b981" };
+  if (score >= 40) return { text: "text-amber-500",   bg: "bg-amber-500",   ring: "#f59e0b" };
+  return              { text: "text-red-500",          bg: "bg-red-500",     ring: "#ef4444" };
+}
+
+function getHealthLabel(score: number) {
+  if (score >= 70) return { label: "Launch Ready",    color: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" };
+  if (score >= 40) return { label: "In Progress",     color: "text-amber-600 dark:text-amber-400",    dot: "bg-amber-500"   };
+  return              { label: "Needs Attention",  color: "text-red-600 dark:text-red-400",        dot: "bg-red-500"     };
+}
+
+function getNextAction(projects: any[], stats: { totalProjects: number; openRecommendations: number }) {
+  if (stats.totalProjects === 0) return {
+    icon: Rocket, title: "Create your first project",
+    description: "Add an app and let AI generate your entire launch kit in under 2 minutes.",
+    href: "/projects/new", cta: "Create project",
+    color: "from-violet-500/10 to-purple-500/10", border: "border-violet-200 dark:border-violet-800",
+    iconBg: "bg-violet-500", iconColor: "text-white",
+  };
 
   const noAnalysis = projects.find((p) => !p.analysis || p.analysis.analysisStatus !== "COMPLETED");
-  if (noAnalysis) {
-    return {
-      type: "analysis" as const,
-      icon: Sparkles,
-      title: `Run AI analysis on "${noAnalysis.name}"`,
-      description: "Discover audience personas, value propositions and keyword opportunities in 30 seconds.",
-      href: `/projects/${noAnalysis.id}?tab=analysis`,
-      cta: "Analyse now",
-      color: "from-blue-500/10 to-cyan-500/10",
-      border: "border-blue-200 dark:border-blue-800",
-      iconBg: "bg-blue-500/10",
-      iconColor: "text-blue-500",
-    };
-  }
+  if (noAnalysis) return {
+    icon: Brain, title: `Run AI analysis on "${noAnalysis.name}"`,
+    description: "Discover audience personas, value propositions and keyword opportunities in 30 seconds.",
+    href: `/projects/${noAnalysis.id}?tab=analysis`, cta: "Analyse now →",
+    color: "from-blue-500/10 to-cyan-500/10", border: "border-blue-200 dark:border-blue-800",
+    iconBg: "bg-blue-500", iconColor: "text-white",
+  };
 
   const noKeywords = projects.find((p) => (p._count?.keywordSets ?? 0) === 0);
-  if (noKeywords) {
-    return {
-      type: "keywords" as const,
-      icon: Search,
-      title: `Research keywords for "${noKeywords.name}"`,
-      description: "Find high-volume, low-competition keywords to boost your organic ranking.",
-      href: `/projects/${noKeywords.id}?tab=store-copy`,
-      cta: "Research keywords",
-      color: "from-emerald-500/10 to-teal-500/10",
-      border: "border-emerald-200 dark:border-emerald-800",
-      iconBg: "bg-emerald-500/10",
-      iconColor: "text-emerald-500",
-    };
-  }
+  if (noKeywords) return {
+    icon: Search, title: `Research keywords for "${noKeywords.name}"`,
+    description: "Find high-volume, low-competition keywords to boost your organic ranking.",
+    href: `/projects/${noKeywords.id}?tab=store-copy`, cta: "Research keywords →",
+    color: "from-emerald-500/10 to-teal-500/10", border: "border-emerald-200 dark:border-emerald-800",
+    iconBg: "bg-emerald-500", iconColor: "text-white",
+  };
 
   const noCopy = projects.find((p) => (p._count?.listingVariants ?? 0) === 0);
-  if (noCopy) {
-    return {
-      type: "copy" as const,
-      icon: FileText,
-      title: `Generate store copy for "${noCopy.name}"`,
-      description: "Create optimised App Store and Google Play listings tailored to your audience.",
-      href: `/projects/${noCopy.id}?tab=store-copy`,
-      cta: "Generate copy",
-      color: "from-orange-500/10 to-amber-500/10",
-      border: "border-orange-200 dark:border-orange-800",
-      iconBg: "bg-orange-500/10",
-      iconColor: "text-orange-500",
-    };
-  }
+  if (noCopy) return {
+    icon: FileText, title: `Generate store copy for "${noCopy.name}"`,
+    description: "Create optimised App Store and Google Play listings tailored to your audience.",
+    href: `/projects/${noCopy.id}?tab=store-copy`, cta: "Generate copy →",
+    color: "from-orange-500/10 to-amber-500/10", border: "border-orange-200 dark:border-orange-800",
+    iconBg: "bg-orange-500", iconColor: "text-white",
+  };
 
-  if (stats.openRecommendations > 0) {
-    return {
-      type: "recs" as const,
-      icon: AlertTriangle,
-      title: `${stats.openRecommendations} open action${stats.openRecommendations !== 1 ? "s" : ""} need your attention`,
-      description: "Your AI recommendations are waiting — work through them to improve rankings.",
-      href: "/projects",
-      cta: "View actions",
-      color: "from-orange-500/10 to-amber-500/10",
-      border: "border-orange-200 dark:border-orange-800",
-      iconBg: "bg-orange-500/10",
-      iconColor: "text-orange-500",
-    };
-  }
+  if (stats.openRecommendations > 0) return {
+    icon: AlertTriangle, title: `${stats.openRecommendations} AI recommendation${stats.openRecommendations !== 1 ? "s" : ""} waiting for you`,
+    description: "Work through your prioritised growth actions to improve rankings and conversion.",
+    href: "/projects", cta: "View actions →",
+    color: "from-orange-500/10 to-amber-500/10", border: "border-orange-200 dark:border-orange-800",
+    iconBg: "bg-orange-500", iconColor: "text-white",
+  };
 
   return null;
 }
@@ -129,7 +100,7 @@ export default async function DashboardPage() {
     ? getDemoProjects()
         .map((p) => ({
           ...p,
-          recommendations: (p.recommendations ?? []).filter((r) => r.status === "OPEN").slice(0, 2),
+          recommendations: (p.recommendations ?? []).filter((r) => r.status === "OPEN").slice(0, 3),
         }))
         .slice(0, 10)
     : await db.project.findMany({
@@ -147,7 +118,7 @@ export default async function DashboardPage() {
           recommendations: {
             where: { status: "OPEN" },
             orderBy: { priority: "desc" },
-            take: 2,
+            take: 3,
           },
         },
         orderBy: { updatedAt: "desc" },
@@ -156,14 +127,23 @@ export default async function DashboardPage() {
 
   const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.FREE;
 
+  const totalVariants    = projects.reduce((a, p) => a + (p._count?.listingVariants ?? 0), 0);
+  const totalExperiments = projects.reduce((a, p) => a + (p._count?.experiments ?? 0), 0);
+  const totalKeywords    = projects.reduce((a, p) => a + (p._count?.keywordSets ?? 0), 0);
+  const totalAnalyses    = projects.filter((p) => p.analysis?.analysisStatus === "COMPLETED").length;
+  const openRecs         = projects.reduce((a, p) => a + p.recommendations.length, 0);
+
+  // Hours saved: listing ~2h, keyword set ~1h, experiment setup ~4h, analysis ~3h
+  const hoursSaved = totalVariants * 2 + totalKeywords * 1 + totalExperiments * 4 + totalAnalyses * 3;
+
   const stats = {
     totalProjects:       projects.length,
-    totalVariants:       projects.reduce((a, p) => a + (p._count?.listingVariants ?? 0), 0),
-    totalExperiments:    projects.reduce((a, p) => a + (p._count?.experiments ?? 0), 0),
-    openRecommendations: projects.reduce((a, p) => a + p.recommendations.length, 0),
+    totalVariants,
+    totalExperiments,
+    openRecommendations: openRecs,
   };
 
-  const allRecommendations = projects
+  const allRecs = projects
     .flatMap((p) => p.recommendations.map((r) => ({ ...r, projectName: p.name, projectId: p.id })))
     .sort((a, b) => {
       const o = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -171,20 +151,17 @@ export default async function DashboardPage() {
     })
     .slice(0, 5);
 
-  const topProject = projects.length > 0
-    ? [...projects].sort((a, b) => getAsoScore(b) - getAsoScore(a))[0]
-    : null;
-
-  const projectUsagePct = limits.projects === Infinity ? 100 : Math.round((stats.totalProjects / limits.projects) * 100);
-  const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const firstName  = session.user.name?.split(" ")[0] ?? "there";
   const nextAction = getNextAction(projects, stats);
+  const hasActivity = totalVariants + totalExperiments + totalKeywords + totalAnalyses > 0;
 
   return (
     <div>
       <Header
-        title="Dashboard"
+        title={`Welcome back, ${firstName}`}
+        subtitle="Your AI-powered App Store command center"
         actions={
-          <Button size="sm" asChild className="h-8">
+          <Button size="sm" asChild className="h-8 bg-gradient-to-r from-violet-500 to-purple-600 hover:opacity-90 border-0">
             <Link href="/projects/new">
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               New Project
@@ -195,47 +172,112 @@ export default async function DashboardPage() {
 
       <div className="p-6 space-y-6">
 
-        {/* ── Hero greeting ── */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-6 text-white shadow-lg">
-          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 80% 20%, white 0%, transparent 60%)" }} />
-          <div className="relative flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium text-violet-200">{getGreeting()}</p>
-              <h2 className="text-2xl font-bold mt-0.5">{firstName} 👋</h2>
-              <p className="text-sm text-violet-200 mt-2 max-w-sm">
-                {stats.totalProjects === 0
-                  ? "Create your first project and let AI power your App Store launch."
-                  : `You have ${stats.openRecommendations} open action${stats.openRecommendations !== 1 ? "s" : ""} waiting — let's crush those rankings.`}
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-1 shrink-0">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
-                <Rocket className="h-8 w-8 text-white" />
+        {/* ── AI Impact Panel ── */}
+        {hasActivity ? (
+          <div className="relative overflow-hidden rounded-2xl border border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 via-purple-50 to-indigo-50 dark:from-violet-950/30 dark:via-purple-950/30 dark:to-indigo-950/30 p-6">
+            <div className="absolute top-0 right-0 w-64 h-64 opacity-5" style={{ backgroundImage: "radial-gradient(circle at center, violet 0%, transparent 70%)" }} />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                <p className="text-xs font-semibold text-violet-600 dark:text-violet-400 uppercase tracking-wide">LaunchOS AI has done this for you</p>
               </div>
-              {limits.projects !== Infinity && (
-                <p className="text-[10px] text-violet-200 text-center whitespace-nowrap">
-                  {stats.totalProjects}/{limits.projects} projects
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground mb-5">Automating your App Store workflow so you can focus on building.</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  {
+                    value: totalVariants,
+                    label: "Store listings",
+                    sublabel: "generated",
+                    detail: `~${totalVariants * 2}h saved`,
+                    icon: FileText,
+                    color: "text-blue-500",
+                    bg: "bg-blue-500/10",
+                    border: "border-blue-200 dark:border-blue-800",
+                  },
+                  {
+                    value: totalKeywords,
+                    label: "Keyword sets",
+                    sublabel: "researched",
+                    detail: `${totalKeywords * 20}+ keywords`,
+                    icon: Search,
+                    color: "text-emerald-500",
+                    bg: "bg-emerald-500/10",
+                    border: "border-emerald-200 dark:border-emerald-800",
+                  },
+                  {
+                    value: totalExperiments,
+                    label: "A/B experiments",
+                    sublabel: "designed",
+                    detail: `~${totalExperiments * 4}h saved`,
+                    icon: FlaskConical,
+                    color: "text-violet-500",
+                    bg: "bg-violet-500/10",
+                    border: "border-violet-200 dark:border-violet-800",
+                  },
+                  {
+                    value: hoursSaved,
+                    label: "Hours saved",
+                    sublabel: "estimated",
+                    detail: "vs. manual work",
+                    icon: Timer,
+                    color: "text-orange-500",
+                    bg: "bg-orange-500/10",
+                    border: "border-orange-200 dark:border-orange-800",
+                  },
+                ].map((item) => (
+                  <div key={item.label} className={`rounded-xl border ${item.border} bg-white/70 dark:bg-black/20 p-4`}>
+                    <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${item.bg} mb-3`}>
+                      <item.icon className={`h-4 w-4 ${item.color}`} />
+                    </div>
+                    <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
+                    <p className="text-xs font-semibold text-foreground">{item.label}</p>
+                    <p className="text-[11px] text-muted-foreground">{item.sublabel} · {item.detail}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          {limits.projects !== Infinity && (
-            <div className="relative mt-4">
-              <div className="flex items-center justify-between text-[11px] text-violet-200 mb-1">
-                <span>Project usage</span>
-                <span>{stats.totalProjects}/{limits.projects}</span>
+        ) : (
+          /* ── Get started hero (no activity yet) ── */
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 p-8 text-white shadow-lg">
+            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle at 80% 20%, white 0%, transparent 60%)" }} />
+            <div className="relative max-w-xl">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 mb-4">
+                <Rocket className="h-6 w-6 text-white" />
               </div>
-              <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
-                <div className="h-full rounded-full bg-white transition-all" style={{ width: `${projectUsagePct}%` }} />
+              <h2 className="text-2xl font-extrabold mb-2">Ready for launch, {firstName}?</h2>
+              <p className="text-violet-200 text-sm mb-6 leading-relaxed">
+                LaunchOS will generate your store copy, research keywords, design A/B experiments and give you AI recommendations — all in one click.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild className="bg-white text-purple-700 hover:bg-white/90 font-semibold border-0">
+                  <Link href="/projects/new">
+                    <Plus className="mr-2 h-4 w-4" /> Create first project
+                  </Link>
+                </Button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-3 gap-4 text-center">
+                {[
+                  { value: "30s", label: "to generate store copy" },
+                  { value: "+31%", label: "avg. CVR uplift" },
+                  { value: "~8h", label: "saved per launch" },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-xl bg-white/10 py-3 px-2">
+                    <p className="text-xl font-extrabold">{s.value}</p>
+                    <p className="text-[11px] text-violet-200">{s.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* ── Smart next-action banner ── */}
         {nextAction && (
           <Link href={nextAction.href} className="group block">
-            <div className={`flex items-center gap-4 rounded-2xl border bg-gradient-to-r ${nextAction.color} ${nextAction.border} p-4 hover:shadow-md transition-shadow`}>
+            <div className={`flex items-center gap-4 rounded-2xl border bg-gradient-to-r ${nextAction.color} ${nextAction.border} p-4 hover:shadow-md transition-all`}>
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${nextAction.iconBg}`}>
                 <nextAction.icon className={`h-5 w-5 ${nextAction.iconColor}`} />
               </div>
@@ -243,57 +285,29 @@ export default async function DashboardPage() {
                 <p className="text-sm font-semibold truncate">{nextAction.title}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{nextAction.description}</p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`hidden sm:block text-xs font-semibold ${nextAction.iconColor}`}>{nextAction.cta}</span>
-                <ChevronRight className={`h-4 w-4 ${nextAction.iconColor} transition-transform group-hover:translate-x-0.5`} />
-              </div>
+              <span className={`hidden sm:flex items-center gap-1 text-xs font-semibold shrink-0`}>
+                {nextAction.cta} <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </div>
           </Link>
         )}
 
-        {/* ── Stat cards ── */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Projects",     value: stats.totalProjects,       icon: Folders,     gradient: "from-blue-500/10 to-cyan-500/10",    iconColor: "text-blue-500",   iconBg: "bg-blue-500/10",   href: "/projects" },
-            { label: "Store Variants",value: stats.totalVariants,      icon: TrendingUp,  gradient: "from-emerald-500/10 to-green-500/10",iconColor: "text-emerald-500",iconBg: "bg-emerald-500/10",href: null },
-            { label: "Experiments",   value: stats.totalExperiments,   icon: FlaskConical,gradient: "from-violet-500/10 to-purple-500/10",iconColor: "text-violet-500", iconBg: "bg-violet-500/10", href: null },
-            { label: "Open Actions",  value: stats.openRecommendations,icon: Lightbulb,   gradient: "from-orange-500/10 to-amber-500/10", iconColor: "text-orange-500", iconBg: "bg-orange-500/10", href: null },
-          ].map((stat) => (
-            <Card key={stat.label} className={`bg-gradient-to-br ${stat.gradient} border hover:shadow-md transition-shadow`}>
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`rounded-xl p-2 ${stat.iconBg}`}>
-                    <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
-                  </div>
-                  {stat.href && (
-                    <Link href={stat.href} className={`text-xs ${stat.iconColor} hover:underline flex items-center gap-0.5`}>
-                      View <ArrowRight className="h-3 w-3" />
-                    </Link>
-                  )}
-                </div>
-                <p className="text-2xl font-bold">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
         {/* ── Main grid ── */}
         <div className="grid gap-6 lg:grid-cols-3">
 
-          {/* Recent Projects */}
+          {/* Project Health Overview */}
           <div className="lg:col-span-2">
             <Card className="overflow-hidden">
               <CardHeader className="py-4 px-5 border-b bg-muted/30">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="rounded-lg bg-blue-500/10 p-1.5">
-                      <Folders className="h-4 w-4 text-blue-500" />
+                    <div className="rounded-lg bg-violet-500/10 p-1.5">
+                      <Activity className="h-4 w-4 text-violet-500" />
                     </div>
-                    <CardTitle className="text-sm font-semibold">Recent Projects</CardTitle>
+                    <CardTitle className="text-sm font-semibold">Project Health</CardTitle>
                   </div>
                   <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
-                    <Link href="/projects">View all <ArrowRight className="ml-1 h-3 w-3" /></Link>
+                    <Link href="/projects">All projects <ArrowRight className="ml-1 h-3 w-3" /></Link>
                   </Button>
                 </div>
               </CardHeader>
@@ -302,7 +316,7 @@ export default async function DashboardPage() {
                   <EmptyState
                     icon={Folders}
                     title="No projects yet"
-                    description="Create your first project to get started."
+                    description="Create your first project to start tracking App Store health."
                     action={
                       <Button size="sm" asChild>
                         <Link href="/projects/new"><Plus className="mr-1.5 h-3.5 w-3.5" /> New Project</Link>
@@ -313,34 +327,52 @@ export default async function DashboardPage() {
                 ) : (
                   <div className="divide-y">
                     {projects.slice(0, 6).map((project) => {
-                      const score = getAsoScore(project);
+                      const score  = getAsoScore(project);
+                      const colors = getAsoColor(score);
+                      const health = getHealthLabel(score);
+                      const urgentRec = project.recommendations?.[0];
+                      // Steps: analysis, keywords, copy, experiments
+                      const steps = [
+                        project.analysis?.analysisStatus === "COMPLETED",
+                        (project._count?.keywordSets ?? 0) > 0,
+                        (project._count?.listingVariants ?? 0) > 0,
+                        (project._count?.experiments ?? 0) > 0,
+                      ];
+                      const stepsDone = steps.filter(Boolean).length;
                       return (
                         <Link
                           key={project.id}
                           href={`/projects/${project.id}`}
-                          className="group flex items-center gap-4 px-5 py-3.5 hover:bg-muted/40 transition-colors"
+                          className="group flex items-center gap-4 px-5 py-4 hover:bg-muted/40 transition-colors"
                         >
+                          {/* Avatar */}
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white font-bold text-sm shadow-sm">
                             {project.name.charAt(0)}
                           </div>
+
+                          {/* Info */}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{project.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {categoryLabel(project.category)} · {project.platform.map(platformLabel).join(" & ")}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-4 shrink-0">
-                            <div className="hidden sm:flex flex-col items-center gap-0.5">
-                              <div className="flex items-center gap-1">
-                                <BarChart3 className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs font-medium">{score}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              {/* Launch step dots */}
+                              <div className="flex items-center gap-0.5">
+                                {steps.map((done, i) => (
+                                  <div key={i} className={cn("h-1.5 w-5 rounded-full", done ? "bg-emerald-500" : "bg-muted")} />
+                                ))}
                               </div>
-                              <span className="text-[9px] text-muted-foreground">ASO</span>
+                              <span className="text-[10px] text-muted-foreground">{stepsDone}/4 steps</span>
                             </div>
-                            <StatusBadge status={project.status} />
-                            <span className="text-xs text-muted-foreground hidden md:flex items-center gap-1">
-                              <Clock className="h-3 w-3" />{timeAgo(project.updatedAt)}
-                            </span>
+                            {urgentRec && (
+                              <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5 line-clamp-1 font-medium">
+                                ⚡ {urgentRec.title}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* ASO Score */}
+                          <div className="flex flex-col items-center gap-0.5 shrink-0">
+                            <div className={cn("text-lg font-black tabular-nums leading-none", colors.text)}>{score}</div>
+                            <div className={cn("text-[9px] font-semibold uppercase tracking-wide", health.color)}>{health.label.split(" ")[0]}</div>
                           </div>
                         </Link>
                       );
@@ -354,72 +386,109 @@ export default async function DashboardPage() {
           {/* Right column */}
           <div className="space-y-6">
 
-            {/* Top Actions */}
+            {/* Top AI Actions */}
             <Card className="overflow-hidden">
               <CardHeader className="py-4 px-5 border-b bg-muted/30">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-orange-500/10 p-1.5">
                     <Lightbulb className="h-4 w-4 text-orange-500" />
                   </div>
-                  <CardTitle className="text-sm font-semibold">Top Actions</CardTitle>
+                  <CardTitle className="text-sm font-semibold">AI Recommendations</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                {allRecommendations.length === 0 ? (
+                {allRecs.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 py-8 px-5 text-center">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                    <p className="text-sm font-medium">All clear!</p>
-                    <p className="text-xs text-muted-foreground">Generate recommendations inside a project to get actionable insights.</p>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 mb-1">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                    </div>
+                    <p className="text-sm font-semibold">All clear!</p>
+                    <p className="text-xs text-muted-foreground">Run AI recommendations inside a project to get prioritised growth actions.</p>
                   </div>
                 ) : (
                   <div className="divide-y">
-                    {allRecommendations.map((rec) => (
-                      <Link
-                        key={rec.id}
-                        href={`/projects/${rec.projectId}?tab=recommendations`}
-                        className="flex items-start gap-3 px-5 py-3 hover:bg-muted/40 transition-colors"
-                      >
-                        <StatusBadge status={rec.priority} className="mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium line-clamp-2 leading-snug">{rec.title}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{rec.projectName}</p>
-                        </div>
+                    {allRecs.map((rec) => {
+                      const priorityColor =
+                        rec.priority === "CRITICAL" ? "bg-red-500" :
+                        rec.priority === "HIGH"     ? "bg-orange-500" :
+                        rec.priority === "MEDIUM"   ? "bg-amber-500" :
+                        "bg-blue-400";
+                      return (
+                        <Link
+                          key={rec.id}
+                          href={`/projects/${rec.projectId}?tab=recommendations`}
+                          className="flex items-start gap-3 px-5 py-3 hover:bg-muted/40 transition-colors group"
+                        >
+                          <div className={cn("mt-1 h-2 w-2 rounded-full shrink-0", priorityColor)} />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium line-clamp-2 leading-snug group-hover:text-primary transition-colors">{rec.title}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{rec.projectName} · {rec.priority}</p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                    <div className="px-5 py-3">
+                      <Link href="/projects" className="text-xs text-primary hover:underline flex items-center gap-1">
+                        View all recommendations <ArrowRight className="h-3 w-3" />
                       </Link>
-                    ))}
+                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Quick Start */}
+            {/* Quick Actions */}
             <Card className="overflow-hidden">
               <CardHeader className="py-4 px-5 border-b bg-muted/30">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-violet-500/10 p-1.5">
                     <Zap className="h-4 w-4 text-violet-500" />
                   </div>
-                  <CardTitle className="text-sm font-semibold">Quick Start</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Quick Actions</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="p-4 space-y-2">
                 {[
-                  { href: "/projects/new",                                          icon: Plus,      bg: "bg-violet-500/10",  hover: "group-hover:bg-violet-500/20",  color: "text-violet-500",  title: "New Project",    desc: "Start an ASO campaign" },
-                  ...(topProject ? [{ href: `/projects/${topProject.id}?tab=analysis`, icon: Sparkles,  bg: "bg-blue-500/10",    hover: "group-hover:bg-blue-500/20",    color: "text-blue-500",    title: "Run AI Analysis", desc: `on ${topProject.name}` }] : []),
-                  { href: "/settings",                                              icon: TrendingUp, bg: "bg-emerald-500/10", hover: "group-hover:bg-emerald-500/20", color: "text-emerald-500", title: "Connect Store",   desc: "Apple & Google integration" },
+                  { href: "/projects/new",  icon: Plus,       bg: "bg-violet-500/10", color: "text-violet-500", title: "New Project",        desc: "Start a new ASO campaign" },
+                  { href: "/projects",      icon: Target,     bg: "bg-blue-500/10",   color: "text-blue-500",   title: "View all projects",   desc: "Manage your portfolio" },
+                  { href: "/settings",      icon: Star,       bg: "bg-emerald-500/10",color: "text-emerald-500",title: "Connect App Store",   desc: "Apple & Google integration" },
                 ].map((item) => (
                   <Link key={item.href + item.title} href={item.href} className="flex items-center gap-3 rounded-xl border p-3 hover:border-primary hover:bg-primary/5 transition-all group">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.bg} ${item.hover} transition-colors`}>
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.bg} group-hover:scale-110 transition-transform`}>
                       <item.icon className={`h-4 w-4 ${item.color}`} />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold truncate">{item.title}</p>
                       <p className="text-[11px] text-muted-foreground truncate">{item.desc}</p>
                     </div>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                 ))}
               </CardContent>
             </Card>
 
+            {/* Plan usage */}
+            {limits.projects !== Infinity && (
+              <Card className="overflow-hidden border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xs font-semibold">Plan: {plan}</p>
+                      <p className="text-[11px] text-muted-foreground">{projects.length}/{limits.projects} projects</p>
+                    </div>
+                    <Button size="sm" variant="outline" asChild className="h-7 text-xs border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400">
+                      <Link href="/settings">Upgrade</Link>
+                    </Button>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-violet-200 dark:bg-violet-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-600 transition-all"
+                      style={{ width: `${Math.round((projects.length / limits.projects) * 100)}%` }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
