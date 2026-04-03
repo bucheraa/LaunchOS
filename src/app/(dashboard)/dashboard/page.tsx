@@ -9,7 +9,7 @@ import {
   Folders, Plus, TrendingUp, FlaskConical, Lightbulb, ArrowRight,
   CheckCircle2, Zap, Target, BarChart3, Clock, Rocket, Sparkles,
   AlertTriangle, Search, FileText, ChevronRight, Timer, Brain,
-  Trophy, Activity, Star,
+  Trophy, Activity, Star, TrendingDown,
 } from "lucide-react";
 import Link from "next/link";
 import { timeAgo, categoryLabel, platformLabel } from "@/lib/utils";
@@ -150,6 +150,12 @@ export default async function DashboardPage() {
       return (o[a.priority as keyof typeof o] ?? 2) - (o[b.priority as keyof typeof o] ?? 2);
     })
     .slice(0, 5);
+
+  // Portfolio-level ASO health
+  const asoScores    = projects.map(getAsoScore);
+  const avgAsoScore  = asoScores.length > 0 ? Math.round(asoScores.reduce((a, b) => a + b, 0) / asoScores.length) : 0;
+  const launchReady  = asoScores.filter((s) => s >= 70).length;
+  const needsWork    = asoScores.filter((s) => s < 40).length;
 
   const firstName  = session.user.name?.split(" ")[0] ?? "there";
   const nextAction = getNextAction(projects, stats);
@@ -384,16 +390,65 @@ export default async function DashboardPage() {
           </div>
 
           {/* Right column */}
-          <div className="space-y-6">
+          <div className="space-y-5">
 
-            {/* Top AI Actions */}
-            <Card className="overflow-hidden">
-              <CardHeader className="py-4 px-5 border-b bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-lg bg-orange-500/10 p-1.5">
-                    <Lightbulb className="h-4 w-4 text-orange-500" />
+            {/* Portfolio ASO Score */}
+            {projects.length > 0 && (
+              <Card className="overflow-hidden">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-0.5">Portfolio Score</p>
+                      <p className="text-3xl font-black tabular-nums leading-none" style={{ color: avgAsoScore >= 70 ? "#10b981" : avgAsoScore >= 40 ? "#f59e0b" : "#ef4444" }}>
+                        {avgAsoScore}
+                        <span className="text-sm font-medium text-muted-foreground">/100</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Average ASO health across {projects.length} app{projects.length !== 1 ? "s" : ""}</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-200 dark:border-violet-800">
+                      <BarChart3 className="h-5 w-5 text-violet-500" />
+                    </div>
                   </div>
-                  <CardTitle className="text-sm font-semibold">AI Recommendations</CardTitle>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden mb-3">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${avgAsoScore}%`,
+                        background: avgAsoScore >= 70 ? "linear-gradient(to right, #10b981, #34d399)" : avgAsoScore >= 40 ? "linear-gradient(to right, #f59e0b, #fbbf24)" : "linear-gradient(to right, #ef4444, #f87171)"
+                      }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { label: "Launch Ready", value: launchReady, color: "text-emerald-600 dark:text-emerald-400" },
+                      { label: "In Progress",  value: projects.length - launchReady - needsWork, color: "text-amber-600 dark:text-amber-400" },
+                      { label: "Needs Work",   value: needsWork,    color: "text-red-500" },
+                    ].map((s) => (
+                      <div key={s.label} className="rounded-lg bg-muted/40 py-2">
+                        <p className={cn("text-base font-black", s.color)}>{s.value}</p>
+                        <p className="text-[10px] text-muted-foreground leading-tight">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AI Recommendations */}
+            <Card className="overflow-hidden">
+              <CardHeader className="py-3.5 px-5 border-b bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-orange-500/10 p-1.5">
+                      <Lightbulb className="h-4 w-4 text-orange-500" />
+                    </div>
+                    <CardTitle className="text-sm font-semibold">AI Recommendations</CardTitle>
+                  </div>
+                  {allRecs.length > 0 && (
+                    <span className="rounded-full bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                      {allRecs.length}
+                    </span>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -408,28 +463,28 @@ export default async function DashboardPage() {
                 ) : (
                   <div className="divide-y">
                     {allRecs.map((rec) => {
-                      const priorityColor =
-                        rec.priority === "CRITICAL" ? "bg-red-500" :
-                        rec.priority === "HIGH"     ? "bg-orange-500" :
-                        rec.priority === "MEDIUM"   ? "bg-amber-500" :
-                        "bg-blue-400";
+                      const { dot, label } =
+                        rec.priority === "CRITICAL" ? { dot: "bg-red-500",    label: "Critical" } :
+                        rec.priority === "HIGH"     ? { dot: "bg-orange-500", label: "High" } :
+                        rec.priority === "MEDIUM"   ? { dot: "bg-amber-500",  label: "Medium" } :
+                                                      { dot: "bg-blue-400",   label: "Low" };
                       return (
                         <Link
                           key={rec.id}
                           href={`/projects/${rec.projectId}?tab=recommendations`}
                           className="flex items-start gap-3 px-5 py-3 hover:bg-muted/40 transition-colors group"
                         >
-                          <div className={cn("mt-1 h-2 w-2 rounded-full shrink-0", priorityColor)} />
+                          <div className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0 ring-2 ring-offset-1", dot, "ring-offset-background", dot.replace("bg-", "ring-"))} />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium line-clamp-2 leading-snug group-hover:text-primary transition-colors">{rec.title}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">{rec.projectName} · {rec.priority}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{rec.projectName} · <span className="font-medium">{label}</span></p>
                           </div>
                         </Link>
                       );
                     })}
-                    <div className="px-5 py-3">
+                    <div className="px-5 py-2.5 bg-muted/20">
                       <Link href="/projects" className="text-xs text-primary hover:underline flex items-center gap-1">
-                        View all recommendations <ArrowRight className="h-3 w-3" />
+                        View all in projects <ArrowRight className="h-3 w-3" />
                       </Link>
                     </div>
                   </div>
@@ -437,31 +492,31 @@ export default async function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Quick Actions */}
+            {/* Quick start / plan */}
             <Card className="overflow-hidden">
-              <CardHeader className="py-4 px-5 border-b bg-muted/30">
+              <CardHeader className="py-3.5 px-5 border-b bg-muted/30">
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-violet-500/10 p-1.5">
                     <Zap className="h-4 w-4 text-violet-500" />
                   </div>
-                  <CardTitle className="text-sm font-semibold">Quick Actions</CardTitle>
+                  <CardTitle className="text-sm font-semibold">Quick Start</CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="p-4 space-y-2">
+              <CardContent className="p-3 space-y-1.5">
                 {[
-                  { href: "/projects/new",  icon: Plus,       bg: "bg-violet-500/10", color: "text-violet-500", title: "New Project",        desc: "Start a new ASO campaign" },
-                  { href: "/projects",      icon: Target,     bg: "bg-blue-500/10",   color: "text-blue-500",   title: "View all projects",   desc: "Manage your portfolio" },
-                  { href: "/settings",      icon: Star,       bg: "bg-emerald-500/10",color: "text-emerald-500",title: "Connect App Store",   desc: "Apple & Google integration" },
+                  { href: "/projects/new", icon: Plus,    bg: "bg-violet-500/10", color: "text-violet-600 dark:text-violet-400", title: "New Project",      desc: "AI generates full launch kit" },
+                  { href: "/projects",     icon: Folders, bg: "bg-blue-500/10",   color: "text-blue-600 dark:text-blue-400",    title: "All Projects",     desc: "Portfolio & health scores" },
+                  { href: "/settings",     icon: Zap,     bg: "bg-emerald-500/10",color: "text-emerald-600 dark:text-emerald-400",title: "Connect Stores", desc: "Apple & Google Play" },
                 ].map((item) => (
-                  <Link key={item.href + item.title} href={item.href} className="flex items-center gap-3 rounded-xl border p-3 hover:border-primary hover:bg-primary/5 transition-all group">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${item.bg} group-hover:scale-110 transition-transform`}>
-                      <item.icon className={`h-4 w-4 ${item.color}`} />
+                  <Link key={item.href + item.title} href={item.href} className="flex items-center gap-3 rounded-xl border p-2.5 hover:border-primary/50 hover:bg-primary/5 transition-all group">
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${item.bg} shrink-0`}>
+                      <item.icon className={`h-3.5 w-3.5 ${item.color}`} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate">{item.title}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{item.desc}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold">{item.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{item.desc}</p>
                     </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </Link>
                 ))}
               </CardContent>
@@ -469,25 +524,23 @@ export default async function DashboardPage() {
 
             {/* Plan usage */}
             {limits.projects !== Infinity && (
-              <Card className="overflow-hidden border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="text-xs font-semibold">Plan: {plan}</p>
-                      <p className="text-[11px] text-muted-foreground">{projects.length}/{limits.projects} projects</p>
-                    </div>
-                    <Button size="sm" variant="outline" asChild className="h-7 text-xs border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400">
-                      <Link href="/settings">Upgrade</Link>
-                    </Button>
+              <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-xs font-semibold">{plan} Plan</p>
+                    <p className="text-[11px] text-muted-foreground">{projects.length} of {limits.projects} projects used</p>
                   </div>
-                  <div className="h-1.5 rounded-full bg-violet-200 dark:bg-violet-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-600 transition-all"
-                      style={{ width: `${Math.round((projects.length / limits.projects) * 100)}%` }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+                  <Button size="sm" variant="outline" asChild className="h-7 text-xs border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/30">
+                    <Link href="/settings">Upgrade</Link>
+                  </Button>
+                </div>
+                <div className="h-1.5 rounded-full bg-violet-200 dark:bg-violet-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-600 transition-all"
+                    style={{ width: `${Math.round((projects.length / limits.projects) * 100)}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
         </div>
